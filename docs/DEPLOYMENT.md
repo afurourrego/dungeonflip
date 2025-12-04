@@ -82,15 +82,17 @@ Verás una salida como esta:
 
 ### Paso 4: Guardar Direcciones
 
-Copia las direcciones de los contratos y guárdalas en tu `.env`:
+**Contratos desplegados en Base Sepolia (Dec 4, 2025):**
 
 ```bash
-AVENTURER_NFT_ADDRESS=0x...
-FEE_DISTRIBUTOR_ADDRESS=0x...
-PROGRESS_TRACKER_ADDRESS=0x...
-REWARDS_POOL_ADDRESS=0x...
-DUNGEON_GAME_ADDRESS=0x...
+AVENTURER_NFT_ADDRESS=0x0c2E1ab7187F1Eb04628cFfb32ae55757C568cbb
+FEE_DISTRIBUTOR_ADDRESS=0xc11256E2889E162456adCFA97bB0D18e094DFCf9
+PROGRESS_TRACKER_ADDRESS=0x6e637BfB86217F30Bf95D8aD11dB9a63985b3bbE
+REWARDS_POOL_ADDRESS=0x4C7Fe76e2C62b1cC4d98306C44258D309b7c1492
+DUNGEON_GAME_ADDRESS=0xb4AD3C00FB9f77bf6c18CF6765Fe6F95d84f3042
 ```
+
+Estas direcciones ya están actualizadas en `frontend/lib/constants.ts`.
 
 ### Paso 5: Verificar Contratos en BaseScan
 
