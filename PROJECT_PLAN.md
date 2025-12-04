@@ -22,7 +22,7 @@ DungeonFlip is a Web3 card-based dungeon crawler game being rebuilt for the **Se
 6. **Submit** to Seedify Vibe Coins with all requirements met
 
 ### 💰 Revenue Model
-- **Entry Fee:** 0.01 ETH per dungeon run
+- **Entry Fee:** 0.00001 ETH per dungeon run
 - **Distribution:**
   - 70% → Weekly Rewards Pool (top 10 players)
   - 20% → Development Treasury
@@ -187,7 +187,7 @@ event AventurerMinted(address indexed owner, uint256 indexed tokenId, Stats stat
 **Purpose:** Core game logic and entry fee management
 
 **Key Features:**
-- Entry fee collection (0.01 ETH)
+- Entry fee collection (0.00001 ETH)
 - Run tracking with NFT ownership validation
 - Integration with FeeDistributor
 - Run completion recording
@@ -203,7 +203,7 @@ function isNFTOwner(address player, uint256 tokenId) external view returns (bool
 
 **State Variables:**
 ```solidity
-uint256 public constant ENTRY_FEE = 0.01 ether;
+uint256 public constant ENTRY_FEE = 0.00001 ether;
 mapping(address => Run) public activeRuns;
 uint256 public totalRunsCompleted;
 ```
@@ -1164,7 +1164,7 @@ describe("AventurerNFT", function () {
 **Segment 3: Live Demo (2 minutes)**
 - Connect wallet (MetaMask or Coinbase)
 - Mint Adventurer NFT (show stats)
-- Enter dungeon (pay 0.01 ETH)
+- Enter dungeon (pay 0.00001 ETH)
 - Play through a few rooms
 - Show card flipping, combat, treasures
 - Exit dungeon or show death
