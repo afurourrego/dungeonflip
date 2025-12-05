@@ -2,6 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/useNFT';
 import { useGame, usePlayerSession, useCanStartGame, useEntryFee } from '@/hooks/useGame';
@@ -185,6 +186,21 @@ export default function GamePage() {
     selectCard(cardId);
   };
 
+  const getCardImage = (type: number) => {
+    switch (type) {
+      case CARD_TYPES.MONSTER:
+        return '/cards/monster.png';
+      case CARD_TYPES.TREASURE:
+        return '/cards/gem.png';
+      case CARD_TYPES.TRAP:
+        return '/cards/trap.png';
+      case CARD_TYPES.POTION:
+        return '/cards/potion.png';
+      default:
+        return '/cards/reverse.png';
+    }
+  };
+
   const getCardEmoji = (type: number) => {
     switch (type) {
       case CARD_TYPES.MONSTER:
@@ -215,12 +231,27 @@ export default function GamePage() {
     }
   };
 
+  const getAventurerImage = (type: number) => {
+    switch (type) {
+      case CARD_TYPES.MONSTER:
+        return '/avatars/adventurer-monster.png';
+      case CARD_TYPES.TREASURE:
+        return '/avatars/adventurer-gem.png';
+      case CARD_TYPES.TRAP:
+        return '/avatars/adventurer-trap.png';
+      case CARD_TYPES.POTION:
+        return '/avatars/adventurer-potion.png';
+      default:
+        return '/avatars/adventurer-idle.png';
+    }
+  };
+
   // Prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="min-h-screen flex items-center justify-center relative">
-        <div className="text-center royal-board p-8">
-          <div className="text-2xl text-amber-300">⏳ Loading...</div>
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl">⏳ Loading...</div>
         </div>
       </div>
     );
@@ -228,9 +259,9 @@ export default function GamePage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center relative">
-        <div className="text-center royal-board p-8 max-w-md">
-          <h2 className="text-3xl font-bold text-dungeon-gold mb-6">Connect Wallet to Play</h2>
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold mb-6">Connect Wallet to Play</h2>
           <ConnectButton />
         </div>
       </div>
@@ -239,13 +270,13 @@ export default function GamePage() {
 
   if (!hasNFT) {
     return (
-      <div className="min-h-screen flex items-center justify-center relative">
-        <div className="text-center royal-board p-8 max-w-md">
-          <h2 className="text-3xl font-bold text-dungeon-gold mb-4">No Aventurer NFT Found</h2>
-          <p className="text-amber-100/80 mb-6">You need an Aventurer NFT to play DungeonFlip</p>
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <h2 className="text-3xl font-bold mb-4">No Aventurer NFT Found</h2>
+          <p className="text-gray-300 mb-6">You need an Aventurer NFT to play DungeonFlip</p>
           <Link
             href="/mint"
-            className="inline-block bg-gradient-to-r from-dungeon-gold to-amber-600 hover:from-amber-500 hover:to-amber-700 text-gray-900 font-bold py-3 px-8 rounded-lg transition transform hover:scale-105 shadow-lg"
+            className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-lg transition"
           >
             🎨 Mint Aventurer NFT
           </Link>
@@ -255,90 +286,46 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
       {/* Header */}
-      <header className="border-b border-amber-800/30 bg-gray-900/50 backdrop-blur-sm relative z-10">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              <Link href="/" className="block">
-                <h1 className="text-2xl font-bold text-dungeon-gold text-glow mb-0.5">
-                  Dungeon Flip
-                </h1>
-                <p className="text-[10px] text-amber-300/60 uppercase tracking-wider">
-                  Powered by Base
-                </p>
-              </Link>
-            </div>
-
-            {/* Center - Total Runs Counter */}
-            <div className="flex-1 flex justify-center">
-              <div className="run-counter">
-                <div className="run-counter-shine" />
-                <div className="relative z-10">
-                  <div className="text-[10px] text-amber-300/70 uppercase tracking-widest mb-0.5">
-                    Total Executed Runs
-                  </div>
-                  <div className="text-3xl font-bold text-dungeon-gold dot-matrix">
-                    {gemsCollected}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right - Wallet and Nav */}
-            <div className="flex-shrink-0 flex items-center gap-3">
-              <Link 
-                href="/leaderboard" 
-                className="text-amber-300 hover:text-amber-200 transition-colors text-sm hidden md:block"
-              >
-                🏆 Leaderboard
-              </Link>
-              <ConnectButton />
-            </div>
-          </div>
+      <header className="border-b border-purple-500/30 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-3xl">⚔️</span>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              DungeonFlip
+            </h1>
+          </Link>
+          <nav className="flex items-center gap-6">
+            <Link href="/leaderboard" className="hover:text-purple-400 transition">
+              🏆 Leaderboard
+            </Link>
+            <ConnectButton />
+          </nav>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 relative z-10">
+      <main className="container mx-auto px-4 py-8">
         {!isPlaying ? (
-          <div className="max-w-3xl mx-auto">
-            <div className="royal-board p-8 text-center">
-              <div className="flex items-center justify-center gap-2 mb-6">
-                <span className="text-4xl">🏰</span>
-                <h2 className="text-3xl font-bold text-dungeon-gold">Enter the Infinite Dungeon</h2>
-              </div>
-              <div className="royal-divider mx-auto mb-6" />
-              
-              <p className="text-amber-100/90 mb-6">
-                Pay an entry fee of {GAME_CONFIG.ENTRY_FEE} ETH to enter the dungeon and compete for weekly prizes!
-              </p>
-
-              <p className="text-amber-100/70 text-sm mb-6">
-                Each room has 4 cards. Choose 1 to reveal.<br />
-                45% Monster | 30% Treasure | 15% Trap | 10% Potion<br />
-                After each room: Continue (risk death) or Exit (claim rewards).<br />
-                <span className="text-dungeon-gold font-bold">Your score = gems collected!</span>
-              </p>
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-purple-900/30 border border-purple-500/50 rounded-lg p-8 text-center">
+              <h2 className="text-3xl font-bold mb-6">Ready to Enter the Dungeon?</h2>
               
               {stats && tokenId !== undefined && tokenId !== null && (
-                <div className="bg-gray-900/70 backdrop-blur-sm rounded-lg p-6 mb-6 border border-amber-800/40">
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <div className="text-xs text-amber-300/80 uppercase tracking-wider">Your Stats</div>
-                  </div>
+                <div className="bg-gray-800/50 rounded-lg p-6 mb-6">
+                  <h3 className="text-xl font-bold mb-4">Your Aventurer Stats (Token #{(tokenId as bigint).toString()})</h3>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="stat-box">
-                      <div className="text-xs text-gray-400">Your ATK</div>
-                      <div className="text-3xl font-bold text-red-400 dot-matrix">⚔️ {stats.atk.toString()}</div>
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-red-400">⚔️ {stats.atk.toString()}</div>
+                      <div className="text-sm text-gray-400">Attack</div>
                     </div>
-                    <div className="stat-box">
-                      <div className="text-xs text-gray-400">Your DEF</div>
-                      <div className="text-3xl font-bold text-blue-400 dot-matrix">🛡️ {stats.def.toString()}</div>
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-blue-400">🛡️ {stats.def.toString()}</div>
+                      <div className="text-sm text-gray-400">Defense</div>
                     </div>
-                    <div className="stat-box">
-                      <div className="text-xs text-gray-400">Your HP</div>
-                      <div className="text-3xl font-bold text-green-400 dot-matrix">❤️ {stats.hp.toString()}</div>
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-green-400">❤️ {stats.hp.toString()}</div>
+                      <div className="text-sm text-gray-400">Health</div>
                     </div>
                   </div>
                 </div>
@@ -347,18 +334,44 @@ export default function GamePage() {
               <button
                 onClick={handleStartGame}
                 disabled={isPending || isConfirming}
-                className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 disabled:transform-none shadow-lg"
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 disabled:transform-none"
               >
-                {isPending ? '⏳ Confirm in Wallet...' : isConfirming ? '⏳ Starting Game...' : `Pay ${GAME_CONFIG.ENTRY_FEE} ETH & Enter`}
+                {isPending ? '⏳ Confirm in Wallet...' : isConfirming ? '⏳ Starting Game...' : '⚔️ Start Game (0.00001 ETH)'}
               </button>
 
-              <p className="text-amber-100/60 text-xs mt-4">
-                💎 70% goes to weekly prize pool • 🏆 Top 10 players win
+              <p className="text-gray-400 text-sm mt-4">
+                Entry fee: 0.00001 ETH • 70% goes to weekly prize pool
               </p>
             </div>
           </div>
         ) : (
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-6xl mx-auto">
+            {/* Stats Bar */}
+            <div className="bg-gray-800/50 border border-purple-500/30 rounded-lg p-4 mb-6">
+              <div className="grid grid-cols-5 gap-4 text-center">
+                <div>
+                  <div className="text-sm text-gray-400">Room</div>
+                  <div className="text-2xl font-bold text-purple-400">{currentRoom}/10</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400">HP</div>
+                  <div className="text-2xl font-bold text-green-400">{playerHP}/{maxHP}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400">ATK</div>
+                  <div className="text-2xl font-bold text-red-400">⚔️ {playerATK}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400">DEF</div>
+                  <div className="text-2xl font-bold text-blue-400">🛡️ {playerDEF}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-400">Gems</div>
+                  <div className="text-2xl font-bold text-yellow-400">💎 {gemsCollected}</div>
+                </div>
+              </div>
+            </div>
+
             {/* Combat or Card Selection */}
             {inCombat && currentMonster ? (
               <div className="relative mb-6">
@@ -377,7 +390,13 @@ export default function GamePage() {
                   
                   <div className="flex justify-around items-center mb-8">
                     <div className="character-card">
-                      <div className="text-7xl mb-3">🧙‍♂️</div>
+                      <Image 
+                        src={getAventurerImage(CARD_TYPES.MONSTER)} 
+                        alt="Aventurer" 
+                        width={120} 
+                        height={120}
+                        className="mb-3 mx-auto"
+                      />
                       <div className="text-xl font-bold text-amber-100">You</div>
                       <div className="mt-3 space-y-1">
                         <div className="text-green-400 dot-matrix">❤️ HP: {playerHP}/{maxHP}</div>
@@ -389,7 +408,13 @@ export default function GamePage() {
                     <div className="text-5xl animate-pulse">⚔️</div>
                     
                     <div className="character-card border-red-500/50 bg-red-900/20">
-                      <div className="text-7xl mb-3">👹</div>
+                      <Image 
+                        src="/cards/monster.png" 
+                        alt={currentMonster.name} 
+                        width={120} 
+                        height={120}
+                        className="mb-3 mx-auto"
+                      />
                       <div className="text-xl font-bold text-red-300">{currentMonster.name}</div>
                       <div className="mt-3 space-y-1">
                         <div className="text-red-400 dot-matrix">❤️ HP: {monsterHP}/{currentMonster.hp}</div>
@@ -419,7 +444,13 @@ export default function GamePage() {
                       className="game-card group"
                     >
                       <div className="relative z-10">
-                        <div className="text-7xl mb-3">{getCardEmoji(card.type)}</div>
+                        <Image 
+                          src={getCardImage(card.type)} 
+                          alt={getCardName(card.type)} 
+                          width={150} 
+                          height={200}
+                          className="mb-3 mx-auto"
+                        />
                         <div className="font-bold text-lg text-amber-100">{getCardName(card.type)}</div>
                         {card.monster && (
                           <div className="text-sm text-amber-300/80 mt-2">
@@ -443,7 +474,13 @@ export default function GamePage() {
               {/* Character Card - Left */}
               <div className="character-card">
                 <div className="text-center mb-4">
-                  <div className="text-6xl mb-2">🧙‍♂️</div>
+                  <Image 
+                    src="/avatars/adventurer-idle.png" 
+                    alt="Your Aventurer" 
+                    width={120} 
+                    height={120}
+                    className="mx-auto mb-2"
+                  />
                   <div className="text-xl font-bold text-amber-100">Your Aventurer</div>
                   {tokenId !== undefined && tokenId !== null && (
                     <div className="text-xs text-amber-300/70">Token #{(tokenId as bigint).toString()}</div>
