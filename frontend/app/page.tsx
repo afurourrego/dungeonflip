@@ -193,7 +193,7 @@ export default function Home() {
       <footer className="border-t border-amber-700/30 mt-20 py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-amber-100/60 text-sm">
-            © 2024 DungeonFlip • Built on Base • Play to Earn
+            © 2025 DungeonFlip • Built on Base • Play to Earn
           </p>
         </div>
       </footer>

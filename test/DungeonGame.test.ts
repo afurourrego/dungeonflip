@@ -72,7 +72,6 @@ describe("DungeonGame", function () {
     it("Should initialize with correct constants", async function () {
       expect(await dungeonGame.ENTRY_FEE()).to.equal(ENTRY_FEE);
       expect(await dungeonGame.GAME_COOLDOWN()).to.equal(GAME_COOLDOWN);
-      expect(await dungeonGame.MAX_DUNGEON_LEVEL()).to.equal(10);
     });
 
     it("Should link to correct contracts", async function () {
@@ -463,23 +462,137 @@ describe("DungeonGame", function () {
     });
   });
 
+  describe("Checkpoint System", function () {
+    beforeEach(async function () {
+      await aventurerNFT.connect(player1).mintAventurer();
+      await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
+    });
+
+    it("Should update checkpoint with valid data", async function () {
+      await expect(dungeonGame.connect(player1).updateCheckpoint(3, 4, 2))
+        .to.emit(dungeonGame, "GameCheckpoint")
+        .withArgs(player1.address, 1, 3, 4, 2, await time.latest() + 1);
+
+      const session = await dungeonGame.getPlayerSession(player1.address);
+      expect(session[5]).to.equal(3); // currentRoom
+      expect(session[6]).to.equal(4); // currentHP
+      expect(session[7]).to.equal(2); // gemsCollected
+    });
+
+    it("Should reject checkpoint with zero HP", async function () {
+      await expect(dungeonGame.connect(player1).updateCheckpoint(3, 0, 2))
+        .to.be.revertedWith("Player is dead");
+    });
+
+    it("Should reject checkpoint without active game", async function () {
+      await expect(dungeonGame.connect(player2).updateCheckpoint(3, 4, 2))
+        .to.be.revertedWith("No active game");
+    });
+
+    it("Should not allow going backwards in rooms", async function () {
+      await dungeonGame.connect(player1).updateCheckpoint(5, 4, 2);
+      await expect(dungeonGame.connect(player1).updateCheckpoint(3, 4, 2))
+        .to.be.revertedWith("Cannot go backwards");
+    });
+  });
+
+  describe("Death Recording", function () {
+    beforeEach(async function () {
+      await aventurerNFT.connect(player1).mintAventurer();
+      await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
+    });
+
+    it("Should record death correctly", async function () {
+      await expect(dungeonGame.connect(player1).recordDeath(5, 3))
+        .to.emit(dungeonGame, "PlayerDied")
+        .withArgs(player1.address, 1, 5, 3, await time.latest() + 1);
+
+      const session = await dungeonGame.getPlayerSession(player1.address);
+      expect(session[4]).to.be.false; // active
+      expect(session[6]).to.equal(0); // currentHP
+      expect(session[7]).to.equal(3); // gemsCollected
+      expect(session[2]).to.equal(0); // scoreEarned
+      expect(session[1]).to.equal(4); // levelsCompleted - Died on room 5, so completed 4
+    });
+
+    it("Should allow new game after death", async function () {
+      await dungeonGame.connect(player1).recordDeath(5, 3);
+
+      await time.increase(GAME_COOLDOWN);
+      // Can reuse the same NFT (token ID 1) after death
+      await expect(dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE }))
+        .to.emit(dungeonGame, "GameStarted");
+    });
+
+    it("Should reject death without active game", async function () {
+      await expect(dungeonGame.connect(player2).recordDeath(5, 3))
+        .to.be.revertedWith("No active game");
+    });
+  });
+
+
+  describe("Room Completion Logging", function () {
+    beforeEach(async function () {
+      await aventurerNFT.connect(player1).mintAventurer();
+      await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
+    });
+
+    it("Should log room completion", async function () {
+      await expect(dungeonGame.connect(player1).logRoomCompletion(1, 1, 5, 1))
+        .to.emit(dungeonGame, "RoomCompleted")
+        .withArgs(player1.address, 1, 1, 1, 5, 1, await time.latest() + 1);
+    });
+
+    it("Should reject room log without active game", async function () {
+      await expect(dungeonGame.connect(player2).logRoomCompletion(1, 1, 5, 1))
+        .to.be.revertedWith("No active game");
+    });
+  });
+
+  describe("Game Session Initialization", function () {
+    it("Should initialize checkpoint fields on start", async function () {
+      await aventurerNFT.connect(player1).mintAventurer();
+      const stats = await aventurerNFT.getAventurerStats(1);
+
+      await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
+
+      const session = await dungeonGame.getPlayerSession(player1.address);
+      expect(session[5]).to.equal(1); // currentRoom
+      expect(session[6]).to.equal(stats.hp); // currentHP
+      expect(session[7]).to.equal(0); // gemsCollected
+      expect(session[9]).to.be.gt(0); // seed
+      expect(session[8]).to.be.gt(0); // lastCheckpointTime
+    });
+  });
+
   describe("Gas Optimization", function () {
     it("Should start game efficiently", async function () {
       const tx = await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
       const receipt = await tx.wait();
-      
-      // Should be under 300k gas
-      expect(receipt!.gasUsed).to.be.lt(300000);
+
+      // Should be under 350k gas (increased due to checkpoint fields)
+      expect(receipt!.gasUsed).to.be.lt(350000);
     });
 
     it("Should complete game efficiently", async function () {
       await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
-      
+
       const tx = await dungeonGame.connect(player1).completeGame();
       const receipt = await tx.wait();
-      
+
       // Should be under 350k gas (includes progress tracker update)
       expect(receipt!.gasUsed).to.be.lt(350000);
+    });
+
+    it("Should update checkpoint efficiently", async function () {
+      await aventurerNFT.connect(player1).mintAventurer();
+      await dungeonGame.connect(player1).startGame(1, { value: ENTRY_FEE });
+
+      const tx = await dungeonGame.connect(player1).updateCheckpoint(3, 4, 2);
+      const receipt = await tx.wait();
+
+      // Should be under 80k gas
+      expect(receipt!.gasUsed).to.be.lt(80000);
     });
   });
 });

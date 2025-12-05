@@ -7,19 +7,38 @@ import { useAccount } from 'wagmi';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/useNFT';
 import { useGame, usePlayerSession, useCanStartGame, useEntryFee } from '@/hooks/useGame';
 import { useGameStore } from '@/store/gameStore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { CARD_TYPES, GAME_CONFIG } from '@/lib/constants';
+import { ResumeGameDialog } from '@/components/ResumeGameDialog';
+import { AdventureLog } from '@/components/AdventureLog';
 
 export default function GamePage() {
   const { address, isConnected, chain } = useAccount();
   const { data: nftBalance } = useNFTBalance(address);
-  const { data: tokenId, isLoading: isLoadingTokenId, error: tokenIdError } = useNFTOwnerTokens(address);
+  const { data: playerSession } = usePlayerSession(address);
+
+  // Use tokenId from session if available (faster), otherwise fetch it
+  const sessionTokenId = playerSession?.tokenId && playerSession.tokenId > BigInt(0) ? playerSession.tokenId : undefined;
+  const { data: fetchedTokenId, isLoading: isLoadingTokenId, error: tokenIdError } = useNFTOwnerTokens(address);
+  const tokenId = sessionTokenId || fetchedTokenId;
+
   const { data: stats } = useAventurerStats(tokenId);
   
-  const { startGame: startGameContract, completeGame: completeGameContract, isPending, isConfirming, error: txError } = useGame();
-  const { data: playerSession } = usePlayerSession(address);
+  const {
+    startGame: startGameContract,
+    completeGame: completeGameContract,
+    updateCheckpoint: updateCheckpointContract,
+    recordDeath: recordDeathContract,
+    logRoomCompletion: logRoomCompletionContract,
+    isPending,
+    isConfirming,
+    error: txError
+  } = useGame();
   const { data: canStartGame } = useCanStartGame(address);
   const { data: contractEntryFee } = useEntryFee();
+
+  // State for Resume dialog
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
   
   // Debug effect
   useEffect(() => {
@@ -57,20 +76,108 @@ export default function GamePage() {
     playerATK,
     playerDEF,
     startNewGame,
+    resumeGame,
     selectCard,
     exitDungeon,
     attack,
     resetGame,
+    setCallbacks,
   } = useGameStore();
 
   const [gameStarted, setGameStarted] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [playerDied, setPlayerDied] = useState(false);
+  const [isConfirmingDeath, setIsConfirmingDeath] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Detect active session on page load
+  useEffect(() => {
+    if (mounted && playerSession && playerSession.active && !isPlaying) {
+      console.log('Active session detected:', playerSession);
+      setShowResumeDialog(true);
+    }
+  }, [mounted, playerSession, isPlaying]);
+
+  // Detect when player dies (HP reaches 0 and game ends)
+  useEffect(() => {
+    if (mounted && !isPlaying && gameStarted && playerHP === 0 && !playerDied) {
+      console.log('Player died! HP reached 0');
+      setPlayerDied(true);
+    }
+  }, [mounted, isPlaying, gameStarted, playerHP, playerDied]);
+
+  // Use refs to store the latest contract functions without causing re-renders
+  const updateCheckpointRef = useRef(updateCheckpointContract);
+  const recordDeathRef = useRef(recordDeathContract);
+  const logRoomCompletionRef = useRef(logRoomCompletionContract);
+
+  // Keep refs updated
+  useEffect(() => {
+    updateCheckpointRef.current = updateCheckpointContract;
+    recordDeathRef.current = recordDeathContract;
+    logRoomCompletionRef.current = logRoomCompletionContract;
+  }, [updateCheckpointContract, recordDeathContract, logRoomCompletionContract]);
+
+  // Stable callback functions that use refs (won't change between renders)
+  // These will call blockchain transactions during gameplay
+  const handleCheckpoint = useCallback(async (currentRoom: number, currentHP: number, gemsCollected: number) => {
+    console.log(`🔖 Auto-checkpoint at room ${currentRoom} with ${currentHP} HP and ${gemsCollected} gems`);
+    try {
+      await updateCheckpointRef.current(currentRoom, currentHP, gemsCollected);
+      console.log('Checkpoint saved successfully');
+    } catch (error) {
+      console.error('Error saving checkpoint:', error);
+      // Don't block game if checkpoint fails
+    }
+  }, []);
+
+  const handleDeath = useCallback(async (roomNumber: number, finalGemsCollected: number) => {
+    console.log(`💀 Player died at room ${roomNumber} with ${finalGemsCollected} gems`);
+    setPlayerDied(true);
+    // Death will be recorded when user clicks "Confirm Death" button
+  }, []);
+
+  const handleRoomCompleted = useCallback(async (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => {
+    console.log(`✅ Room ${roomNumber} completed - Type: ${cardType}, HP: ${hpRemaining}, Gems: ${gemsCollected}`);
+    try {
+      await logRoomCompletionRef.current(roomNumber, cardType, hpRemaining, gemsCollected);
+      console.log('Room completion logged successfully');
+    } catch (error) {
+      console.error('Error logging room completion:', error);
+      // Don't block game if logging fails
+    }
+  }, []);
+
+  // Register blockchain callbacks only once on mount
+  useEffect(() => {
+    setCallbacks({
+      onCheckpoint: handleCheckpoint,
+      onDeath: handleDeath,
+      onRoomCompleted: handleRoomCompleted
+    });
+  }, [handleCheckpoint, handleDeath, handleRoomCompleted, setCallbacks]);
+
   const hasNFT = mounted && nftBalance && Number(nftBalance) > 0;
+
+  const handleResumeGame = () => {
+    if (playerSession && stats) {
+      console.log('Resuming game from checkpoint:', playerSession);
+      // Resume game with checkpoint data - restore HP, room, and gems
+      resumeGame(
+        Number(stats.atk),
+        Number(stats.def),
+        Number(stats.hp), // maxHP
+        playerSession.currentRoom,
+        playerSession.currentHP,
+        playerSession.gemsCollected
+      );
+      setShowResumeDialog(false);
+    }
+  };
+
 
   const handleStartGame = async () => {
     console.log('=== HANDLE START GAME CLICKED ===');
@@ -167,14 +274,60 @@ export default function GamePage() {
     }
   }, [gameStarted, stats, isPlaying, isPending, isConfirming, startNewGame]);
 
-  const handleExitDungeon = async () => {
-    exitDungeon();
+  const handleConfirmDeath = async () => {
+    const currentState = useGameStore.getState();
+    setIsConfirmingDeath(true);
+
     try {
+      console.log('Recording death on blockchain...');
+      await recordDeathContract(
+        currentState.currentRoom,
+        currentState.gemsCollected
+      );
+
+      console.log('Death recorded successfully!');
+
+      // Reset local state after successful blockchain confirmation
+      setTimeout(() => {
+        resetGame();
+        setGameStarted(false);
+        setPlayerDied(false);
+        setIsConfirmingDeath(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Error recording death:', error);
+      alert('Error al confirmar la muerte. Por favor intenta de nuevo.');
+      setIsConfirmingDeath(false);
+    }
+  };
+
+  const handleExitDungeon = async () => {
+    // Get current game state before exiting
+    const currentState = useGameStore.getState();
+
+    try {
+      // Save final checkpoint before exiting (this will open wallet)
+      console.log('Saving final checkpoint before exit...');
+      await updateCheckpointContract(
+        currentState.currentRoom,
+        currentState.playerHP,
+        currentState.gemsCollected
+      );
+
       // Complete game on blockchain
-      completeGameContract();
+      console.log('Completing game on blockchain...');
+      await completeGameContract();
+
+      console.log('Game completed successfully!');
     } catch (error) {
       console.error('Error completing game:', error);
+      alert('Error al salir del dungeon. Por favor intenta de nuevo.');
+      return; // Don't reset if there was an error
     }
+
+    // Update local state
+    exitDungeon();
+
     setTimeout(() => {
       resetGame();
       setGameStarted(false);
@@ -287,6 +440,52 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
+      {/* Resume Dialog */}
+      {showResumeDialog && playerSession && playerSession.active && (
+        <ResumeGameDialog
+          session={playerSession}
+          onResume={handleResumeGame}
+        />
+      )}
+
+      {/* Death Confirmation Dialog */}
+      {playerDied && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-b from-red-900 to-red-950 border-2 border-red-500 rounded-lg p-6 max-w-md w-full shadow-2xl">
+            <h2 className="text-2xl font-bold text-yellow-400 mb-4">💀 You Died!</h2>
+
+            <div className="bg-black/40 rounded-lg p-4 mb-6">
+              <p className="text-gray-300 mb-3">
+                Your adventure has come to an end...
+              </p>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-400">Room Reached:</p>
+                  <p className="text-white font-bold">{currentRoom}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Gems Collected:</p>
+                  <p className="text-blue-400 font-bold">{gemsCollected} 💎</p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleConfirmDeath}
+              disabled={isConfirmingDeath}
+              className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-red-500/50"
+            >
+              {isConfirmingDeath ? '⏳ Confirming...' : '☠️ Confirm Death & Record on Chain'}
+            </button>
+
+            <p className="text-xs text-gray-400 mt-4 text-center">
+              This will record your death on the blockchain and end your game session.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-purple-500/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -351,7 +550,7 @@ export default function GamePage() {
               <div className="grid grid-cols-5 gap-4 text-center">
                 <div>
                   <div className="text-sm text-gray-400">Room</div>
-                  <div className="text-2xl font-bold text-purple-400">{currentRoom}/10</div>
+                  <div className="text-2xl font-bold text-purple-400">{currentRoom}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-400">HP</div>
@@ -489,7 +688,7 @@ export default function GamePage() {
                 <div className="space-y-3">
                   <div className="stat-box">
                     <div className="text-xs text-gray-400">Room</div>
-                    <div className="text-2xl font-bold text-purple-400 dot-matrix">{currentRoom}/10</div>
+                    <div className="text-2xl font-bold text-purple-400 dot-matrix">{currentRoom}</div>
                   </div>
                   <div className="stat-box">
                     <div className="text-xs text-gray-400">Health</div>
@@ -520,30 +719,8 @@ export default function GamePage() {
               </div>
 
               {/* Adventure Log - Right (spans 2 columns) */}
-              <div className="col-span-2 adventure-log">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-2xl">📜</span>
-                  <h4 className="text-xl font-bold text-dungeon-gold">Adventure Log</h4>
-                </div>
-                <div className="h-[400px] overflow-y-auto space-y-2 pr-2">
-                  {combatLog.length > 0 ? (
-                    combatLog.map((log, index) => (
-                      <div 
-                        key={index} 
-                        className="bg-gray-900/40 border border-amber-800/30 rounded px-3 py-2 text-sm text-amber-100/90"
-                      >
-                        <span className="text-amber-400 font-bold mr-2">[{index + 1}]</span>
-                        {log}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-amber-100/50 py-8">
-                      <div className="text-4xl mb-2">🗺️</div>
-                      <div>Your adventure begins...</div>
-                      <div className="text-xs mt-2">Combat events will appear here</div>
-                    </div>
-                  )}
-                </div>
+              <div className="col-span-2">
+                <AdventureLog address={address} tokenId={tokenId} />
               </div>
             </div>
           </div>

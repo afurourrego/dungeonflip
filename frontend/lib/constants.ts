@@ -1,10 +1,11 @@
 // Contract addresses on Base Sepolia (Deployed Dec 4, 2025 with ENTRY_FEE 0.00001 ETH)
+// Updated Dec 5, 2025 with checkpoint system and adventure log
 export const CONTRACTS = {
-  AVENTURER_NFT: '0x0c2E1ab7187F1Eb04628cFfb32ae55757C568cbb' as `0x${string}`,
-  FEE_DISTRIBUTOR: '0xc11256E2889E162456adCFA97bB0D18e094DFCf9' as `0x${string}`,
-  PROGRESS_TRACKER: '0x6e637BfB86217F30Bf95D8aD11dB9a63985b3bbE' as `0x${string}`,
-  REWARDS_POOL: '0x4C7Fe76e2C62b1cC4d98306C44258D309b7c1492' as `0x${string}`,
-  DUNGEON_GAME: '0xb4AD3C00FB9f77bf6c18CF6765Fe6F95d84f3042' as `0x${string}`,
+  AVENTURER_NFT: '0xA54d3D87eF4928648208b3c36de4770261520f4f' as `0x${string}`,
+  FEE_DISTRIBUTOR: '0x48889147f7381a2Ae8bC6d89b94880D152F47900' as `0x${string}`,
+  PROGRESS_TRACKER: '0x5C0Aeff419Db64E25cDb49dBCd48176825a1C462' as `0x${string}`,
+  REWARDS_POOL: '0x591caFe0D0D4E8c2B959a47F7a442caea17D5Fb0' as `0x${string}`,
+  DUNGEON_GAME: '0x125C5E5A70884ab701EE29D5D04df28EDF398760' as `0x${string}`,
 } as const;
 
 // Game constants
@@ -40,7 +41,6 @@ export const STAT_RANGES = {
 // Combat constants
 export const COMBAT = {
   HIT_CHANCE: 0.8, // 80%
-  MAX_ROOMS: 10, // Maximum rooms per run
 } as const;
 
 // Fee distribution percentages

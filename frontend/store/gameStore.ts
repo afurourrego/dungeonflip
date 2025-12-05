@@ -23,25 +23,36 @@ export interface GameState {
   maxHP: number;
   gemsCollected: number;
   cards: Card[];
-  
+
   // Combat state
   inCombat: boolean;
   currentMonster: Monster | null;
   monsterHP: number;
   combatLog: string[];
-  
+
   // Player stats (from NFT)
   playerATK: number;
   playerDEF: number;
-  
+
+  // Callbacks for blockchain integration
+  onCheckpoint?: (currentRoom: number, currentHP: number, gemsCollected: number) => Promise<void> | void;
+  onDeath?: (roomNumber: number, finalGemsCollected: number) => Promise<void> | void;
+  onRoomCompleted?: (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => Promise<void> | void;
+
   // Actions
   startNewGame: (atk: number, def: number, hp: number) => void;
+  resumeGame: (atk: number, def: number, maxHP: number, currentRoom: number, currentHP: number, gemsCollected: number) => void;
   generateCards: () => void;
   selectCard: (cardId: string) => void;
   exitDungeon: () => void;
   attack: () => void;
   resetGame: () => void;
   addCombatLog: (message: string) => void;
+  setCallbacks: (callbacks: {
+    onCheckpoint?: (currentRoom: number, currentHP: number, gemsCollected: number) => Promise<void> | void;
+    onDeath?: (roomNumber: number, finalGemsCollected: number) => Promise<void> | void;
+    onRoomCompleted?: (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => Promise<void> | void;
+  }) => void;
 }
 
 // Monster templates
@@ -88,6 +99,28 @@ function generateRandomCard(): Card {
   };
 }
 
+// Helper function to handle room completion logic - calls blockchain transactions
+async function handleRoomCompletion(
+  previousRoom: number,
+  currentHP: number,
+  gemsCollected: number,
+  cardType: number,
+  onCheckpoint?: (currentRoom: number, currentHP: number, gemsCollected: number) => Promise<void> | void,
+  onRoomCompleted?: (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => Promise<void> | void
+) {
+  const completedRoom = previousRoom;
+
+  // Log room completion to blockchain
+  if (onRoomCompleted) {
+    await onRoomCompleted(completedRoom, cardType, currentHP, gemsCollected);
+  }
+
+  // Auto-checkpoint every 3 rooms (3, 6, 9, 12, etc.)
+  if (completedRoom % 3 === 0 && onCheckpoint) {
+    await onCheckpoint(completedRoom, currentHP, gemsCollected);
+  }
+}
+
 export const useGameStore = create<GameState>((set, get) => ({
   // Initial state
   isPlaying: false,
@@ -102,6 +135,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   combatLog: [],
   playerATK: 0,
   playerDEF: 0,
+  onCheckpoint: undefined,
+  onDeath: undefined,
+  onRoomCompleted: undefined,
   
   startNewGame: (atk, def, hp) => {
     set({
@@ -116,6 +152,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentMonster: null,
       monsterHP: 0,
       combatLog: [],
+    });
+    get().generateCards();
+  },
+
+  resumeGame: (atk, def, maxHP, currentRoom, currentHP, gemsCollected) => {
+    set({
+      isPlaying: true,
+      currentRoom,
+      playerHP: currentHP,
+      maxHP,
+      gemsCollected,
+      playerATK: atk,
+      playerDEF: def,
+      inCombat: false,
+      currentMonster: null,
+      monsterHP: 0,
+      combatLog: [`Resumed from Room ${currentRoom} with ${currentHP}/${maxHP} HP and ${gemsCollected} gems`],
     });
     get().generateCards();
   },
@@ -144,12 +197,25 @@ export const useGameStore = create<GameState>((set, get) => ({
         
       case CARD_TYPES.TREASURE:
         const gems = card.gemValue || 1;
+        const newGems = gemsCollected + gems;
         set({
-          gemsCollected: gemsCollected + gems,
+          gemsCollected: newGems,
           combatLog: [`You found ${gems} gem${gems > 1 ? 's' : ''}!`],
         });
-        setTimeout(() => {
+        setTimeout(async () => {
           const state = get();
+          const completedRoom = state.currentRoom;
+
+          // Handle room completion callbacks (checkpoints + logging) - await blockchain transactions
+          await handleRoomCompletion(
+            completedRoom,
+            state.playerHP,
+            state.gemsCollected,
+            CARD_TYPES.TREASURE,
+            state.onCheckpoint,
+            state.onRoomCompleted
+          );
+
           set({
             currentRoom: state.currentRoom + 1,
             combatLog: [],
@@ -165,15 +231,34 @@ export const useGameStore = create<GameState>((set, get) => ({
           combatLog: ['You triggered a trap and lost 1 HP!'],
         });
         if (newHP === 0) {
-          setTimeout(() => {
+          setTimeout(async () => {
+            const state = get();
+
+            // Call onDeath callback when HP reaches 0 - triggers "Confirm Death" dialog
+            if (state.onDeath) {
+              await state.onDeath(state.currentRoom, state.gemsCollected);
+            }
+
             set({
               isPlaying: false,
               combatLog: ['Game Over! Your HP reached 0.'],
             });
           }, 1500);
         } else {
-          setTimeout(() => {
+          setTimeout(async () => {
             const state = get();
+            const completedRoom = state.currentRoom;
+
+            // Handle room completion callbacks (checkpoints + logging) - await blockchain transactions
+            await handleRoomCompletion(
+              completedRoom,
+              state.playerHP,
+              state.gemsCollected,
+              CARD_TYPES.TRAP,
+              state.onCheckpoint,
+              state.onRoomCompleted
+            );
+
             set({
               currentRoom: state.currentRoom + 1,
               combatLog: [],
@@ -189,8 +274,20 @@ export const useGameStore = create<GameState>((set, get) => ({
           playerHP: healedHP,
           combatLog: [`You drank a potion and restored ${healedHP - playerHP} HP!`],
         });
-        setTimeout(() => {
+        setTimeout(async () => {
           const state = get();
+          const completedRoom = state.currentRoom;
+
+          // Handle room completion callbacks (checkpoints + logging) - await blockchain transactions
+          await handleRoomCompletion(
+            completedRoom,
+            state.playerHP,
+            state.gemsCollected,
+            CARD_TYPES.POTION,
+            state.onCheckpoint,
+            state.onRoomCompleted
+          );
+
           set({
             currentRoom: state.currentRoom + 1,
             combatLog: [],
@@ -221,9 +318,21 @@ export const useGameStore = create<GameState>((set, get) => ({
           monsterHP: 0,
           combatLog: newLog,
         });
-        
-        setTimeout(() => {
+
+        setTimeout(async () => {
           const state = get();
+          const completedRoom = state.currentRoom;
+
+          // Handle room completion callbacks (checkpoints + logging) - await blockchain transactions
+          await handleRoomCompletion(
+            completedRoom,
+            state.playerHP,
+            state.gemsCollected,
+            CARD_TYPES.MONSTER,
+            state.onCheckpoint,
+            state.onRoomCompleted
+          );
+
           set({
             currentRoom: state.currentRoom + 1,
             combatLog: [],
@@ -247,6 +356,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       
       if (newPlayerHP === 0) {
         newLog.push('Game Over! Your HP reached 0.');
+
+        const state = get();
+        // Call onDeath callback when HP reaches 0 - triggers "Confirm Death" dialog
+        if (state.onDeath) {
+          const deathCallback = state.onDeath;
+          // Use async IIFE to properly await the callback
+          (async () => {
+            await deathCallback(state.currentRoom, state.gemsCollected);
+          })();
+        }
+
         set({
           isPlaying: false,
           inCombat: false,
@@ -289,5 +409,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => ({
       combatLog: [...state.combatLog, message],
     }));
+  },
+
+  setCallbacks: (callbacks) => {
+    set(callbacks);
   },
 }));
