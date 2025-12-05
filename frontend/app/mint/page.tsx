@@ -2,6 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAccount } from 'wagmi';
 import { useNFT, useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/useNFT';
 import { useState, useEffect } from 'react';
@@ -93,11 +94,22 @@ export default function MintPage() {
               </Link>
             </div>
           ) : (
-            <div className="bg-purple-900/30 border border-purple-500/50 rounded-lg p-8">
+            <div className="royal-board p-8">
               <div className="text-center mb-8">
-                <div className="text-6xl mb-4">🧙‍♂️</div>
-                <h3 className="text-2xl font-bold mb-4">Free Aventurer NFT</h3>
-                <p className="text-gray-300 mb-6">
+                <Image 
+                  src="/avatars/adventurer-idle.png" 
+                  alt="Aventurer" 
+                  width={150} 
+                  height={150}
+                  className="mx-auto mb-4 animate-bounce-slow"
+                />
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <div className="royal-dot" />
+                  <h3 className="text-2xl font-bold text-amber-300">Free Aventurer NFT</h3>
+                  <div className="royal-dot" />
+                </div>
+                <div className="royal-divider mx-auto mb-4" />
+                <p className="text-amber-100/80 mb-6">
                   Each Aventurer has unique randomized stats: Attack (ATK), Defense (DEF), and Health Points (HP).
                   These stats will determine your success in the dungeon!
                 </p>

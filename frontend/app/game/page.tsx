@@ -2,6 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/useNFT';
 import { useGame, usePlayerSession, useCanStartGame, useEntryFee } from '@/hooks/useGame';
@@ -185,6 +186,21 @@ export default function GamePage() {
     selectCard(cardId);
   };
 
+  const getCardImage = (type: number) => {
+    switch (type) {
+      case CARD_TYPES.MONSTER:
+        return '/cards/monster.png';
+      case CARD_TYPES.TREASURE:
+        return '/cards/gem.png';
+      case CARD_TYPES.TRAP:
+        return '/cards/trap.png';
+      case CARD_TYPES.POTION:
+        return '/cards/potion.png';
+      default:
+        return '/cards/reverse.png';
+    }
+  };
+
   const getCardEmoji = (type: number) => {
     switch (type) {
       case CARD_TYPES.MONSTER:
@@ -212,6 +228,21 @@ export default function GamePage() {
         return 'Potion';
       default:
         return 'Unknown';
+    }
+  };
+
+  const getAventurerImage = (type: number) => {
+    switch (type) {
+      case CARD_TYPES.MONSTER:
+        return '/avatars/adventurer-monster.png';
+      case CARD_TYPES.TREASURE:
+        return '/avatars/adventurer-gem.png';
+      case CARD_TYPES.TRAP:
+        return '/avatars/adventurer-trap.png';
+      case CARD_TYPES.POTION:
+        return '/avatars/adventurer-potion.png';
+      default:
+        return '/avatars/adventurer-idle.png';
     }
   };
 
@@ -343,83 +374,178 @@ export default function GamePage() {
 
             {/* Combat or Card Selection */}
             {inCombat && currentMonster ? (
-              <div className="bg-gray-800/50 border border-red-500/50 rounded-lg p-8 mb-6">
-                <h3 className="text-2xl font-bold text-center mb-6 text-red-400">
-                  ⚔️ Combat: {currentMonster.name}
-                </h3>
+              <div className="relative mb-6">
+                {/* Combat Overlay */}
+                <div className="combat-overlay absolute inset-0 -z-10 rounded-xl" />
                 
-                <div className="flex justify-around items-center mb-8">
-                  <div className="text-center">
-                    <div className="text-6xl mb-2">🧙‍♂️</div>
-                    <div className="text-xl font-bold">You</div>
-                    <div className="text-green-400">❤️ {playerHP}</div>
+                <div className="royal-board p-8">
+                  <div className="text-center mb-6">
+                    <div className="inline-block bg-red-900/40 border border-red-500/60 rounded-lg px-6 py-2 mb-4">
+                      <div className="text-lg font-bold text-red-300">⚔️ Your Turn!</div>
+                    </div>
+                    <h3 className="text-3xl font-bold text-red-400">
+                      Combat: {currentMonster.name}
+                    </h3>
                   </div>
                   
-                  <div className="text-4xl">⚔️</div>
-                  
-                  <div className="text-center">
-                    <div className="text-6xl mb-2">👹</div>
-                    <div className="text-xl font-bold">{currentMonster.name}</div>
-                    <div className="text-red-400">❤️ {monsterHP}</div>
-                    <div className="text-sm text-gray-400">ATK: {currentMonster.atk}</div>
+                  <div className="flex justify-around items-center mb-8">
+                    <div className="character-card">
+                      <Image 
+                        src={getAventurerImage(CARD_TYPES.MONSTER)} 
+                        alt="Aventurer" 
+                        width={120} 
+                        height={120}
+                        className="mb-3 mx-auto"
+                      />
+                      <div className="text-xl font-bold text-amber-100">You</div>
+                      <div className="mt-3 space-y-1">
+                        <div className="text-green-400 dot-matrix">❤️ HP: {playerHP}/{maxHP}</div>
+                        <div className="text-red-400 dot-matrix">⚔️ ATK: {playerATK}</div>
+                        <div className="text-blue-400 dot-matrix">🛡️ DEF: {playerDEF}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-5xl animate-pulse">⚔️</div>
+                    
+                    <div className="character-card border-red-500/50 bg-red-900/20">
+                      <Image 
+                        src="/cards/monster.png" 
+                        alt={currentMonster.name} 
+                        width={120} 
+                        height={120}
+                        className="mb-3 mx-auto"
+                      />
+                      <div className="text-xl font-bold text-red-300">{currentMonster.name}</div>
+                      <div className="mt-3 space-y-1">
+                        <div className="text-red-400 dot-matrix">❤️ HP: {monsterHP}/{currentMonster.hp}</div>
+                        <div className="text-orange-400 dot-matrix">💥 DMG: {currentMonster.atk - playerDEF > 0 ? currentMonster.atk - playerDEF : 1}-{currentMonster.atk}</div>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  onClick={attack}
-                  className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold py-3 px-8 rounded-lg transition"
-                >
-                  ⚔️ Attack!
-                </button>
+                  <button
+                    onClick={attack}
+                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 shadow-lg"
+                  >
+                    ⚔️ Attack!
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="mb-6">
-                <h3 className="text-2xl font-bold text-center mb-6">Choose a Card</h3>
-                <div className="grid grid-cols-4 gap-4">
+                <h3 className="text-3xl font-bold text-center mb-6 text-dungeon-gold">
+                  🏰 Room {currentRoom} - Choose Your Fate
+                </h3>
+                <div className="grid grid-cols-4 gap-4 mb-8">
                   {cards.map((card) => (
                     <button
                       key={card.id}
                       onClick={() => handleCardClick(card.id)}
-                      className="bg-gray-800 border-2 border-purple-500/50 hover:border-purple-400 hover:scale-105 rounded-lg p-6 transition transform"
+                      className="game-card group"
                     >
-                      <div className="text-6xl mb-2">{getCardEmoji(card.type)}</div>
-                      <div className="font-bold">{getCardName(card.type)}</div>
-                      {card.monster && (
-                        <div className="text-sm text-gray-400 mt-2">
-                          {card.monster.name}
-                        </div>
-                      )}
-                      {card.gemValue && (
-                        <div className="text-sm text-yellow-400 mt-2">
-                          +{card.gemValue} 💎
-                        </div>
-                      )}
+                      <div className="relative z-10">
+                        <Image 
+                          src={getCardImage(card.type)} 
+                          alt={getCardName(card.type)} 
+                          width={150} 
+                          height={200}
+                          className="mb-3 mx-auto"
+                        />
+                        <div className="font-bold text-lg text-amber-100">{getCardName(card.type)}</div>
+                        {card.monster && (
+                          <div className="text-sm text-amber-300/80 mt-2">
+                            {card.monster.name}
+                          </div>
+                        )}
+                        {card.gemValue && (
+                          <div className="text-lg text-yellow-400 mt-2 dot-matrix">
+                            +{card.gemValue} 💎
+                          </div>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Combat Log */}
-            {combatLog.length > 0 && (
-              <div className="bg-gray-800/50 border border-purple-500/30 rounded-lg p-4 mb-6">
-                <h4 className="font-bold mb-2">Combat Log:</h4>
-                <div className="space-y-1 text-sm text-gray-300">
-                  {combatLog.map((log, index) => (
-                    <div key={index}>• {log}</div>
-                  ))}
+            {/* Bottom Section: Character Card + Adventure Log */}
+            <div className="grid grid-cols-3 gap-6 mb-6">
+              {/* Character Card - Left */}
+              <div className="character-card">
+                <div className="text-center mb-4">
+                  <Image 
+                    src="/avatars/adventurer-idle.png" 
+                    alt="Your Aventurer" 
+                    width={120} 
+                    height={120}
+                    className="mx-auto mb-2"
+                  />
+                  <div className="text-xl font-bold text-amber-100">Your Aventurer</div>
+                  {tokenId !== undefined && tokenId !== null && (
+                    <div className="text-xs text-amber-300/70">Token #{(tokenId as bigint).toString()}</div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="stat-box">
+                    <div className="text-xs text-gray-400">Room</div>
+                    <div className="text-2xl font-bold text-purple-400 dot-matrix">{currentRoom}/10</div>
+                  </div>
+                  <div className="stat-box">
+                    <div className="text-xs text-gray-400">Health</div>
+                    <div className="text-2xl font-bold text-green-400 dot-matrix">❤️ {playerHP}/{maxHP}</div>
+                  </div>
+                  <div className="stat-box">
+                    <div className="text-xs text-gray-400">Attack</div>
+                    <div className="text-2xl font-bold text-red-400 dot-matrix">⚔️ {playerATK}</div>
+                  </div>
+                  <div className="stat-box">
+                    <div className="text-xs text-gray-400">Defense</div>
+                    <div className="text-2xl font-bold text-blue-400 dot-matrix">🛡️ {playerDEF}</div>
+                  </div>
+                  <div className="stat-box">
+                    <div className="text-xs text-gray-400">Gems</div>
+                    <div className="text-2xl font-bold text-yellow-400 dot-matrix">💎 {gemsCollected}</div>
+                  </div>
+                </div>
+                
+                {/* Exit Button inside Character Card */}
+                <button
+                  onClick={handleExitDungeon}
+                  disabled={inCombat}
+                  className="w-full mt-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition shadow-lg"
+                >
+                  {inCombat ? '⚔️ In Combat!' : `🚪 Exit (Save ${gemsCollected} 💎)`}
+                </button>
+              </div>
+
+              {/* Adventure Log - Right (spans 2 columns) */}
+              <div className="col-span-2 adventure-log">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-2xl">📜</span>
+                  <h4 className="text-xl font-bold text-dungeon-gold">Adventure Log</h4>
+                </div>
+                <div className="h-[400px] overflow-y-auto space-y-2 pr-2">
+                  {combatLog.length > 0 ? (
+                    combatLog.map((log, index) => (
+                      <div 
+                        key={index} 
+                        className="bg-gray-900/40 border border-amber-800/30 rounded px-3 py-2 text-sm text-amber-100/90"
+                      >
+                        <span className="text-amber-400 font-bold mr-2">[{index + 1}]</span>
+                        {log}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-amber-100/50 py-8">
+                      <div className="text-4xl mb-2">🗺️</div>
+                      <div>Your adventure begins...</div>
+                      <div className="text-xs mt-2">Combat events will appear here</div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-
-            {/* Exit Button */}
-            <button
-              onClick={handleExitDungeon}
-              disabled={inCombat}
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg transition"
-            >
-              🚪 Exit Dungeon (Save Gems: {gemsCollected} 💎)
-            </button>
+            </div>
           </div>
         )}
       </main>

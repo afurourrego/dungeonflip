@@ -18,22 +18,40 @@ export default function LeaderboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
+    <div className="min-h-screen relative">
       {/* Header */}
-      <header className="border-b border-purple-500/30 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-3xl">⚔️</span>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              DungeonFlip
-            </h1>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/game" className="hover:text-purple-400 transition">
-              🎮 Play
+      <header className="border-b border-amber-700/30 backdrop-blur-md bg-gray-900/50 relative z-20">
+        <div className="container mx-auto px-4 py-4">
+          <div className="grid grid-cols-3 items-center gap-4">
+            {/* Left: Logo */}
+            <Link href="/" className="flex items-center gap-2 justify-start">
+              <span className="text-3xl drop-shadow-lg">⚔️</span>
+              <div>
+                <h1 className="text-2xl font-bold text-dungeon-gold">
+                  Dungeon Flip
+                </h1>
+                <div className="text-[10px] text-amber-400/60 -mt-1">Powered by Base</div>
+              </div>
             </Link>
-            <ConnectButton />
-          </nav>
+
+            {/* Center: Trophy */}
+            <div className="flex justify-center">
+              <div className="run-counter">
+                <div className="text-5xl animate-bounce-slow">🏆</div>
+              </div>
+            </div>
+
+            {/* Right: Nav + Wallet */}
+            <nav className="flex items-center gap-4 justify-end">
+              <Link 
+                href="/game" 
+                className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
+              >
+                🎮 Play
+              </Link>
+              <ConnectButton />
+            </nav>
+          </div>
         </div>
       </header>
 
