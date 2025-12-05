@@ -103,11 +103,11 @@ export default function GamePage() {
 
   // Detect when player dies (HP reaches 0 and game ends)
   useEffect(() => {
-    if (mounted && !isPlaying && gameStarted && playerHP === 0 && !playerDied) {
+    if (mounted && !isPlaying && gameStarted && currentRoom > 0 && playerHP === 0 && !playerDied) {
       console.log('Player died! HP reached 0');
       setPlayerDied(true);
     }
-  }, [mounted, isPlaying, gameStarted, playerHP, playerDied]);
+  }, [mounted, isPlaying, gameStarted, currentRoom, playerHP, playerDied]);
 
   // Use refs to store the latest contract functions without causing re-renders
   const updateCheckpointRef = useRef(updateCheckpointContract);
