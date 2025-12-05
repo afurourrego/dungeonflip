@@ -355,6 +355,177 @@ When adding new prompts, use this template:
 
 ---
 
-**Total Prompts Documented:** 6 (5 detailed + 1 template)  
+**Total Prompts Documented:** 7 (6 detailed + 1 template)  
 **Last Updated:** December 4, 2025  
-**Status:** ✅ Frontend Complete - Ready for Testing & Deployment
+**Status:** ✅ Frontend Complete with Enhanced Visuals - Ready for Testing & Deployment
+
+---
+
+### Prompt 7: Enhanced Visual Design Implementation
+**Date:** 2025-12-04  
+**Tool:** Claude (Cursor)  
+**Context:** Apply professional visual design from dungeonhack reference project to improve UI/UX
+
+**Prompt:**
+```
+Necesito que leas y escanees este repositorio: https://github.com/afurourrego/dungeonhack
+
+Necesito que te enfoques en la parte estetica el css, los colores y todo lo demas, necesito que lo apliques a este proyecto
+```
+
+**Response Summary:**
+- Analyzed dungeonhack repository's visual design system
+- Enhanced globals.css with premium styling components:
+  - `.royal-board` - Premium container with complex gradients and borders
+  - `.royal-dot` and `.royal-divider` - Decorative elements
+  - `.run-counter` - Animated counter display with shine effect
+  - `.dot-matrix` - Digital font styling for stats
+  - Leaderboard scroll styling
+- Updated tailwind.config.js with hover-float animation keyframe
+- Applied new styles across all main pages:
+  - Leaderboard: Royal-board containers, dot-matrix stats, amber/gold theme
+  - Mint: Enhanced NFT minting UI with decorative elements
+  - Home: Improved feature cards with animations and glows
+- Maintained all existing animations (flip-3d, shine, shake, glow-red, bubble, particle-burst, energy-pulse)
+- Successfully compiled with no TypeScript errors
+
+**Iteration:** 1  
+**Outcome:** ✅ Success - Enhanced visual design applied throughout  
+**Files Modified:**
+- frontend/app/globals.css
+- frontend/tailwind.config.js
+- frontend/app/leaderboard/page.tsx
+- frontend/app/mint/page.tsx
+- frontend/app/page.tsx
+
+**Visual Enhancements:**
+- 🎨 Amber/Gold color scheme (dungeonhack inspired)
+- ✨ Premium "royal-board" styling with multi-layer shadows
+- 🔢 Dot-matrix font for digital displays
+- 🌟 Enhanced animations (shine, glow, float, bounce)
+- 💫 Improved hover states and transitions
+- 📊 Better stat box designs with glass-morphism
+- 🏆 Professional leaderboard presentation
+
+**Learning:**
+- CSS layering techniques for depth effects
+- Custom animation integration
+- Component-specific styling patterns
+- Maintaining functionality while enhancing visuals
+- Reference project analysis for design inspiration
+
+---
+
+## 🚀 ONBOARDING PROMPT FOR NEW TEAM MEMBERS
+
+**Copy the following prompt to share with teammates starting a new chat session:**
+
+---
+
+### DUNGEONFLIP PROJECT ONBOARDING PROMPT
+
+Hi! I'm joining the DungeonFlip development team for the Seedify Vibe Coins Hackathon. Here's the complete context:
+
+**PROJECT OVERVIEW:**
+DungeonFlip is a Web3 dungeon crawler game on Base blockchain where players mint NFT adventurers, battle monsters, collect gems, and compete for weekly ETH prizes. It's based on the dungeonhack game (OneChain/Move) but rebuilt for Base/Ethereum using Solidity.
+
+**REPOSITORY:**
+- GitHub: https://github.com/afurourrego/dungeonflip
+- Reference Project: https://github.com/afurourrego/dungeonhack (for visual design inspiration)
+
+**CURRENT STATUS:**
+✅ Smart Contracts: 5 contracts deployed and verified on Base Sepolia
+✅ Frontend: Complete Next.js 14 app with Web3 integration
+✅ Visual Design: Enhanced with premium styling from dungeonhack
+✅ Testing: All contract tests passing (118 tests total)
+⏳ Pending: Testing, optimization, mainnet deployment, hackathon submission
+
+**DEPLOYED CONTRACTS (Base Sepolia):**
+- AventurerNFT: 0xBD61aAEb1c8705889a25054cCcA61D2c06e1b25A
+- FeeDistributor: 0x221de7B5A230a9d19B11a30d797e7cBdD2b4a880
+- ProgressTracker: 0x9e26a0F842D963F29E5541745fb93b8F0BCB6919
+- RewardsPool: 0x0a9767856c51A28176d90f840B8D3903B7cCfd02
+- DungeonGame: 0xe601c341270404422f16829869d0a3AA296E5227
+
+**KEY DOCUMENTATION:**
+1. `PROJECT_PLAN.md` - Complete development roadmap and architecture
+2. `PROJECT_STATUS.md` - Current state and deployment details
+3. `ai_logs/prompts.md` - All AI interactions and learnings
+4. `ai_logs/iteration_history.md` - Development timeline
+5. `docs/DEPLOYMENT.md` - Deployment guide (Spanish)
+6. `README.md` - Project overview and quick start
+
+**TECH STACK:**
+- Smart Contracts: Solidity 0.8.28, Hardhat, OpenZeppelin v5.0.0
+- Frontend: Next.js 14, React 18, TypeScript, TailwindCSS
+- Web3: Wagmi v2, Viem v2, RainbowKit, Zustand
+- Blockchain: Base Sepolia (testnet), Base Mainnet (production target)
+
+**GAME MECHANICS:**
+- Free NFT minting with randomized stats (ATK: 1-2, DEF: 1-2, HP: 4-6)
+- Entry fee: 0.001 ETH per run
+- 4 cards per room: Monster (45%), Treasure (30%), Trap (15%), Potion (10%)
+- Weekly prizes: Top 10 share 70% of fees (30%, 20%, 15%... distribution)
+- 6 rooms per run with increasing difficulty
+
+**VISUAL DESIGN SYSTEM:**
+- Color Scheme: Amber/Gold (#fbbf24), Purple (#6b46c1), Dark (#1a1625)
+- Premium Components: royal-board, dot-matrix, stat-box
+- Animations: shine, flip-3d, shake, glow-red, bubble, particle-burst, energy-pulse, hover-float
+- Theme: Dark fantasy dungeon with gold accents
+
+**HACKATHON REQUIREMENTS (Seedify Vibe Coins):**
+- Blockchain: Base (Ethereum L2)
+- Theme: Gaming/Entertainment
+- Submission: Video demo, GitHub repo, live deployment
+- Deadline: [Check hackathon page]
+- Categories: Best Overall, Most Innovative, Best UX
+
+**WHAT I NEED HELP WITH:**
+[Specify your area: testing, optimization, features, deployment, documentation, etc.]
+
+**IMPORTANT FILES TO READ FIRST:**
+1. Read `PROJECT_PLAN.md` for overall architecture
+2. Read `PROJECT_STATUS.md` for current state
+3. Check `ai_logs/prompts.md` for development context
+4. Review deployed contracts on BaseScan
+
+**DEVELOPMENT COMMANDS:**
+```bash
+# Smart Contracts
+cd A:\GitHub\dungeonflip
+npm install
+npx hardhat compile
+npx hardhat test
+
+# Frontend
+cd frontend
+npm install
+npm run dev          # Development server (localhost:3000)
+npm run build        # Production build
+
+# Deployment
+npx hardhat run scripts/deploy.ts --network baseSepolia
+```
+
+**QUESTIONS TO ASK:**
+- Where are we in the development timeline?
+- What tasks are pending from PROJECT_PLAN.md?
+- Any known bugs or issues?
+- What's the priority for the next sprint?
+
+Please help me understand the current state and guide me on what to work on next. I've read the documentation and I'm ready to contribute!
+
+---
+
+**END OF ONBOARDING PROMPT**
+
+**Usage Instructions for Team:**
+1. Copy the entire "DUNGEONFLIP PROJECT ONBOARDING PROMPT" section above
+2. Paste it into a new chat session with your AI assistant (Claude, ChatGPT, Copilot, etc.)
+3. Add your specific question or task at the end
+4. The AI will have full context to help you effectively
+
+**Total Prompts Documented:** 7 (6 detailed + 1 template + 1 onboarding)  
+**Last Updated:** December 4, 2025  
+**Status:** ✅ Frontend Complete with Enhanced Visuals - Ready for Testing & Deployment

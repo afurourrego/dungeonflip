@@ -9,9 +9,38 @@
 
   body {
     background: #1a1625;
-    background-image: linear-gradient(135deg, #1a1625 0%, #2d1b3d 100%);
+    background-image: 
+      repeating-linear-gradient(
+        90deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+      ),
+      repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+      ),
+      linear-gradient(135deg, #1a1625 0%, #2d1b3d 50%, #1a1625 100%);
     background-attachment: fixed;
+    background-size: 40px 40px, 40px 40px, 100% 100%;
     color: white;
+  }
+  
+  /* Stone texture overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(circle at 20% 50%, rgba(251, 191, 36, 0.02) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.02) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(251, 191, 36, 0.01) 0%, transparent 30%);
+    pointer-events: none;
+    z-index: 0;
   }
 
   button, a, [role="button"], .cursor-pointer {
@@ -63,6 +92,207 @@
     text-shadow:
       0 0 6px rgba(250, 204, 21, 0.6),
       0 0 2px rgba(0, 0, 0, 0.8);
+  }
+
+  /* Royal Board - Premium container style */
+  .royal-board {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 2px solid rgba(219, 166, 94, 0.55);
+    background:
+      radial-gradient(circle at 20% 20%, rgba(255, 204, 128, 0.1), transparent 35%),
+      radial-gradient(circle at 80% 0%, rgba(255, 196, 120, 0.12), transparent 30%),
+      radial-gradient(circle at 50% 100%, rgba(191, 112, 62, 0.18), transparent 30%),
+      linear-gradient(135deg, #3c0f12 0%, #23080a 40%, #1a0608 100%);
+    box-shadow:
+      0 20px 40px rgba(0, 0, 0, 0.6),
+      inset 0 0 0 1px rgba(255, 196, 120, 0.12),
+      inset 0 0 30px rgba(0, 0, 0, 0.45);
+  }
+
+  .royal-board::before {
+    content: "";
+    position: absolute;
+    inset: 10px;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    border-radius: 12px;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .royal-board::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(90deg, rgba(255, 204, 128, 0.05) 1px, transparent 1px),
+      linear-gradient(rgba(255, 204, 128, 0.05) 1px, transparent 1px);
+    background-size: 14px 14px;
+    opacity: 0.15;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  .royal-board > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .royal-divider {
+    height: 1px;
+    width: 140px;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0), rgba(251, 191, 36, 0.6), rgba(251, 191, 36, 0));
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+  }
+
+  .royal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: radial-gradient(circle, #facc15 0%, #f59e0b 50%, #b45309 100%);
+    box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+  }
+
+  /* Run Counter - Animated counter display */
+  .run-counter {
+    @apply relative overflow-hidden rounded-xl border border-amber-400/70 px-5 py-3 text-center;
+    background-image: linear-gradient(to bottom right, rgba(120, 53, 15, 0.7), rgba(146, 64, 14, 0.5), rgba(120, 53, 15, 0.3));
+    box-shadow:
+      0 0 18px rgba(251, 191, 36, 0.45),
+      0 0 35px rgba(251, 191, 36, 0.25),
+      inset 0 0 12px rgba(0, 0, 0, 0.45);
+    min-width: 180px;
+  }
+
+  .run-counter::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    background-image:
+      radial-gradient(circle at 0 0, rgba(255, 193, 7, 0.08) 1px, transparent 0),
+      radial-gradient(circle at 6px 6px, rgba(255, 193, 7, 0.05) 1px, transparent 0);
+    background-size: 12px 12px;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  @keyframes runShine {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(120%); }
+  }
+
+  .run-counter-shine {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.12) 45%, rgba(255, 255, 255, 0.02) 55%, transparent 100%);
+    animation: runShine 3s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Leaderboard scroll styling */
+  .leaderboard-scroll::-webkit-scrollbar {
+    height: 0px;
+  }
+
+  .leaderboard-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+
+  .leaderboard-scroll {
+    overflow-x: hidden;
+  }
+
+  /* Game Card Styling - Ornate dungeon cards */
+  .game-card {
+    @apply relative rounded-2xl transition-all duration-300;
+    background: linear-gradient(135deg, rgba(26, 22, 37, 0.95) 0%, rgba(35, 28, 45, 0.98) 100%);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(251, 191, 36, 0.1);
+  }
+
+  .game-card::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 1rem;
+    padding: 3px;
+    background: linear-gradient(135deg, 
+      rgba(251, 191, 36, 0.6) 0%, 
+      rgba(217, 119, 6, 0.4) 25%,
+      rgba(251, 191, 36, 0.3) 50%,
+      rgba(217, 119, 6, 0.4) 75%,
+      rgba(251, 191, 36, 0.6) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .game-card.card-back:hover:not(.disabled) {
+    transform: translateY(-8px) scale(1.05);
+    box-shadow: 
+      0 12px 48px rgba(251, 191, 36, 0.4),
+      0 0 24px rgba(251, 191, 36, 0.3),
+      inset 0 1px 0 rgba(251, 191, 36, 0.2);
+  }
+
+  /* Ornate border pattern for cards */
+  .ornate-border {
+    position: relative;
+  }
+
+  .ornate-border::before,
+  .ornate-border::after {
+    content: "";
+    position: absolute;
+    background: linear-gradient(135deg, #c9a85c 0%, #b8954d 50%, #c9a85c 100%);
+  }
+
+  .ornate-border::before {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+  }
+
+  .ornate-border::after {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+  }
+
+  /* Character card styling */
+  .character-card {
+    @apply relative overflow-hidden rounded-xl;
+    background: linear-gradient(135deg, rgba(120, 53, 15, 0.4) 0%, rgba(35, 8, 10, 0.6) 100%);
+    border: 2px solid rgba(251, 191, 36, 0.4);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      inset 0 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Adventure log styling */
+  .adventure-log {
+    @apply relative overflow-hidden rounded-lg;
+    background: linear-gradient(135deg, rgba(26, 6, 8, 0.95) 0%, rgba(35, 8, 10, 0.98) 100%);
+    border: 2px solid rgba(217, 119, 6, 0.4);
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.6),
+      inset 0 0 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Combat screen overlay */
+  .combat-overlay {
+    background: radial-gradient(circle at center, 
+      rgba(139, 0, 0, 0.1) 0%,
+      rgba(26, 6, 8, 0.8) 50%,
+      rgba(0, 0, 0, 0.95) 100%);
   }
 }
 

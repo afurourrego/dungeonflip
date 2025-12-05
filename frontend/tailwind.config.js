@@ -50,6 +50,10 @@ module.exports = {
           '0%': { transform: 'translate(-50%, -20px)', opacity: '0' },
           '100%': { transform: 'translate(-50%, 0)', opacity: '1' },
         },
+        'hover-float': {
+          '0%, 100%': { transform: 'translateY(0) scale(1)' },
+          '50%': { transform: 'translateY(-8px) scale(1.03)' },
+        },
       },
       fontFamily: {
         'press-start': ['var(--font-press-start)', 'monospace'],
