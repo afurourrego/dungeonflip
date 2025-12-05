@@ -71,3 +71,9 @@ export const NETWORKS = {
 
 // Current network (change to BASE_MAINNET for production)
 export const CURRENT_NETWORK = NETWORKS.BASE_SEPOLIA;
+
+// Common burn destinations
+export const BURN_ADDRESSES = {
+  BASE_SEPOLIA: '0x000000000000000000000000000000000000dEaD' as `0x${string}`,
+  BASE_MAINNET: '0x000000000000000000000000000000000000dEaD' as `0x${string}`,
+} as const;

@@ -1,4 +1,5 @@
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useCallback, useEffect, useState } from 'react';
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { CONTRACTS } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
 
@@ -6,6 +7,12 @@ export interface AventurerStats {
   atk: bigint;
   def: bigint;
   hp: bigint;
+  mintedAt: bigint;
+}
+
+export interface WalletNFT {
+  tokenId: bigint;
+  stats: AventurerStats;
 }
 
 export function useNFT() {
@@ -140,4 +147,98 @@ export function useTotalSupply() {
       staleTime: 60000, // Cache for 1 minute
     },
   });
+}
+
+export function useWalletNFTs(address?: `0x${string}`) {
+  const publicClient = usePublicClient();
+  const { data: totalSupply } = useTotalSupply();
+  const [data, setData] = useState<WalletNFT[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchNFTs = useCallback(async () => {
+    if (!address || !publicClient) {
+      setData([]);
+      setIsLoading(false);
+      return;
+    }
+
+    if (totalSupply === undefined) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const maxTokens = Math.min(Number(totalSupply), 50);
+
+      if (maxTokens <= 0) {
+        setData([]);
+        return;
+      }
+
+      const tokenIds = Array.from({ length: maxTokens }, (_, index) => BigInt(index + 1));
+      const owners = await Promise.all(
+        tokenIds.map((tokenId) =>
+          publicClient
+            .readContract({
+              address: CONTRACTS.AVENTURER_NFT,
+              abi: AventurerNFTABI.abi,
+              functionName: 'ownerOf',
+              args: [tokenId],
+            })
+            .catch((err) => {
+              console.warn('ownerOf failed for token', tokenId.toString(), err);
+              return null;
+            })
+        )
+      );
+
+      const normalizedAddress = address.toLowerCase();
+      const ownedTokenIds = tokenIds.filter((tokenId, index) => {
+        const owner = owners[index];
+        return typeof owner === 'string' && owner.toLowerCase() === normalizedAddress;
+      });
+
+      if (ownedTokenIds.length === 0) {
+        setData([]);
+        return;
+      }
+
+      const statsResults = await Promise.all(
+        ownedTokenIds.map((tokenId) =>
+          publicClient.readContract({
+            address: CONTRACTS.AVENTURER_NFT,
+            abi: AventurerNFTABI.abi,
+            functionName: 'getAventurerStats',
+            args: [tokenId],
+          })
+        )
+      );
+
+      const formatted: WalletNFT[] = ownedTokenIds.map((tokenId, index) => ({
+        tokenId,
+        stats: statsResults[index] as AventurerStats,
+      }));
+
+      setData(formatted);
+    } catch (err) {
+      console.error('Error fetching wallet NFTs:', err);
+      setError(err instanceof Error ? err : new Error('Unknown error fetching NFTs'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [address, publicClient, totalSupply]);
+
+  useEffect(() => {
+    fetchNFTs();
+  }, [fetchNFTs]);
+
+  return {
+    data,
+    isLoading,
+    error,
+    refresh: fetchNFTs,
+  };
 }

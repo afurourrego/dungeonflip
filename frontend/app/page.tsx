@@ -50,6 +50,12 @@ export default function Home() {
             {/* Right: Nav + Wallet */}
             <nav className="flex items-center gap-4 justify-end">
               <Link 
+                href="/nfts" 
+                className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
+              >
+                💎 NFTs
+              </Link>
+              <Link 
                 href="/leaderboard" 
                 className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
               >

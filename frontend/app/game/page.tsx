@@ -8,14 +8,14 @@ import { useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/use
 import { useGame, usePlayerSession, useCanStartGame, useEntryFee } from '@/hooks/useGame';
 import { useGameStore } from '@/store/gameStore';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { CARD_TYPES, GAME_CONFIG } from '@/lib/constants';
+import { CARD_TYPES, GAME_CONFIG, CURRENT_NETWORK } from '@/lib/constants';
 import { ResumeGameDialog } from '@/components/ResumeGameDialog';
 import { AdventureLog } from '@/components/AdventureLog';
 
 export default function GamePage() {
   const { address, isConnected, chain } = useAccount();
   const { data: nftBalance } = useNFTBalance(address);
-  const { data: playerSession } = usePlayerSession(address);
+  const { data: playerSession, isLoading: isLoadingPlayerSession } = usePlayerSession(address);
 
   // Use tokenId from session if available (faster), otherwise fetch it
   const sessionTokenId = playerSession?.tokenId && playerSession.tokenId > BigInt(0) ? playerSession.tokenId : undefined;
@@ -34,7 +34,7 @@ export default function GamePage() {
     isConfirming,
     error: txError
   } = useGame();
-  const { data: canStartGame } = useCanStartGame(address);
+  const { data: canStartGame, isLoading: isLoadingCanStart } = useCanStartGame(address);
   const { data: contractEntryFee } = useEntryFee();
 
   // State for Resume dialog
@@ -161,6 +161,20 @@ export default function GamePage() {
   }, [handleCheckpoint, handleDeath, handleRoomCompleted, setCallbacks]);
 
   const hasNFT = mounted && nftBalance && Number(nftBalance) > 0;
+  const isTokenLoading = hasNFT && (isLoadingTokenId || tokenId === undefined || tokenId === null);
+  const isWrongNetwork = chain?.id !== undefined && chain.id !== CURRENT_NETWORK.id;
+  const hasActiveSession = Boolean(playerSession && (playerSession as any).active);
+  const isCooldownBlocked = canStartGame === false;
+  const isSyncingState = isLoadingCanStart || isLoadingPlayerSession;
+  const isStartDisabled =
+    isPending ||
+    isConfirming ||
+    isTokenLoading ||
+    !stats ||
+    isSyncingState ||
+    isWrongNetwork ||
+    isCooldownBlocked ||
+    hasActiveSession;
 
   const handleResumeGame = () => {
     if (playerSession && stats) {
@@ -198,8 +212,8 @@ export default function GamePage() {
       return;
     }
     
-    if (chain?.id !== 84532) { // Base Sepolia
-      alert('Por favor cambia a la red Base Sepolia.');
+    if (isWrongNetwork) {
+      alert(`Por favor cambia a la red ${CURRENT_NETWORK.name}.`);
       return;
     }
     
@@ -208,7 +222,7 @@ export default function GamePage() {
       return;
     }
     
-    if (isLoadingTokenId) {
+    if (isTokenLoading) {
       alert('Cargando información del NFT... Por favor espera un momento.');
       return;
     }
@@ -219,14 +233,19 @@ export default function GamePage() {
       return;
     }
     
+    if (isSyncingState) {
+      alert('Sincronizando tu progreso con la blockchain... intenta de nuevo en unos segundos.');
+      return;
+    }
+
     // Check if player can start game
-    if (canStartGame === false) {
+    if (isCooldownBlocked) {
       alert('No puedes iniciar un nuevo juego en este momento. Puede que tengas un juego activo o necesites esperar el cooldown de 30 segundos.');
       return;
     }
     
     // Check if player has active session
-    if (playerSession && (playerSession as any).active === true) {
+    if (hasActiveSession) {
       alert('Ya tienes un juego activo. Por favor completa el juego actual primero.');
       return;
     }
@@ -532,15 +551,41 @@ export default function GamePage() {
 
               <button
                 onClick={handleStartGame}
-                disabled={isPending || isConfirming}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 disabled:transform-none"
+                disabled={isStartDisabled}
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 disabled:transform-none"
               >
-                {isPending ? '⏳ Confirm in Wallet...' : isConfirming ? '⏳ Starting Game...' : '⚔️ Start Game (0.00001 ETH)'}
+                {isPending
+                  ? '⏳ Confirm in Wallet...'
+                  : isConfirming
+                    ? '⏳ Starting Game...'
+                    : isWrongNetwork
+                      ? `Cambia a ${CURRENT_NETWORK.name}`
+                      : !hasNFT
+                        ? 'Necesitas un Aventurer NFT'
+                        : isTokenLoading
+                          ? '⏳ Cargando NFT...'
+                          : isSyncingState
+                            ? '⏳ Sincronizando progreso...'
+                            : isCooldownBlocked
+                              ? 'Cooldown activo (30s)'
+                              : hasActiveSession
+                                ? 'Juego activo detectado'
+                                : '⚔️ Start Game (0.00001 ETH)'}
               </button>
 
               <p className="text-gray-400 text-sm mt-4">
                 Entry fee: 0.00001 ETH • 70% goes to weekly prize pool
               </p>
+              {(isCooldownBlocked || hasActiveSession) && (
+                <p className="text-yellow-200 text-xs mt-2">
+                  {hasActiveSession
+                    ? 'Tienes un juego guardado. Usa "Resume" para continuar o finalízalo antes de iniciar uno nuevo.'
+                    : 'Debes esperar 30 segundos desde tu última partida antes de iniciar otra.'}
+                </p>
+              )}
+              {isSyncingState && (
+                <p className="text-purple-200 text-xs mt-2">Sincronizando datos on-chain… intenta nuevamente en breve.</p>
+              )}
             </div>
           </div>
         ) : (
