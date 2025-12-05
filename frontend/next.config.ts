@@ -3,7 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     // Ignorar módulos opcionales que no están instalados
-    config.externals.push('pino-pretty', 'lokijs', 'encoding', '@gemini-wallet/core', 'porto');
+    config.externals.push(
+      'pino-pretty',
+      'lokijs',
+      'encoding',
+      '@gemini-wallet/core',
+      'porto',
+      'porto/internal'
+    );
     
     if (!isServer) {
       config.resolve.fallback = {
@@ -27,7 +34,7 @@ const nextConfig: NextConfig = {
     config.plugins = config.plugins || [];
     config.plugins.push(
       new (require('webpack').IgnorePlugin)({
-        resourceRegExp: /^(@gemini-wallet\/core|porto|@react-native-async-storage\/async-storage)$/,
+        resourceRegExp: /^(@gemini-wallet\/core|porto(\/internal)?|@react-native-async-storage\/async-storage)$/,
       })
     );
     
