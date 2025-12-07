@@ -1,41 +1,42 @@
 'use client';
 
-import { useAdventureLog, AdventureLogEntry } from '@/hooks/useAdventureLog';
+import { useAdventureLog, AdventureLogEntry, AdventureLogEntryType } from '@/hooks/useAdventureLog';
+import { useEffect, useState } from 'react';
 
 interface AdventureLogProps {
   address?: `0x${string}`;
   tokenId?: bigint;
 }
 
-function getEventIcon(type: AdventureLogEntry['type']): string {
+function getEventIcon(type: AdventureLogEntryType): string {
   switch (type) {
-    case 'gameStarted':
+    case 'runStarted':
       return '🎮';
-    case 'roomCompleted':
-      return '✅';
-    case 'checkpoint':
-      return '💾';
-    case 'playerDied':
+    case 'cardResolved':
+      return '🃏';
+    case 'runPaused':
+      return '⏸️';
+    case 'runDied':
       return '💀';
-    case 'gameEnded':
+    case 'runExited':
       return '🏆';
     default:
       return '📝';
   }
 }
 
-function getEventColor(type: AdventureLogEntry['type']): string {
+function getEventColor(type: AdventureLogEntryType): string {
   switch (type) {
-    case 'gameStarted':
+    case 'runStarted':
       return 'text-green-400';
-    case 'roomCompleted':
+    case 'cardResolved':
       return 'text-blue-400';
-    case 'checkpoint':
+    case 'runPaused':
       return 'text-purple-400';
-    case 'playerDied':
+    case 'runDied':
       return 'text-red-400';
-    case 'gameEnded':
-      return 'text-gold-400';
+    case 'runExited':
+      return 'text-amber-300';
     default:
       return 'text-gray-400';
   }
@@ -43,23 +44,37 @@ function getEventColor(type: AdventureLogEntry['type']): string {
 
 function formatEventMessage(entry: AdventureLogEntry): string {
   switch (entry.type) {
-    case 'gameStarted':
-      return `Game started with Token #${entry.data.tokenId}`;
-    case 'roomCompleted':
-      return `Room ${entry.data.roomNumber} completed | HP: ${entry.data.hpRemaining} | Gems: ${entry.data.gemsCollected}`;
-    case 'checkpoint':
-      return `Checkpoint saved at Room ${entry.data.currentRoom} | HP: ${entry.data.currentHP} | Gems: ${entry.data.gemsCollected}`;
-    case 'playerDied':
-      return `Player died in Room ${entry.data.roomNumber} | Gems collected: ${entry.data.gemsCollected}`;
-    case 'gameEnded':
-      return `Game completed! Score: ${entry.data.scoreEarned} | Gems: ${entry.data.gemsCollected}`;
+    case 'runStarted':
+      return `Run ${entry.data.resumed ? 'resumed' : 'started'} at room ${entry.data.room}`;
+    case 'cardResolved':
+      return `Card resolved • Room ${entry.data.room} • HP ${entry.data.hp} • Gems ${entry.data.gems}`;
+    case 'runPaused':
+      return `Run paused at room ${entry.data.room} • HP ${entry.data.hp} • Gems ${entry.data.gems}`;
+    case 'runDied':
+      return `Adventurer fell in room ${entry.data.room} • Gems ${entry.data.gems}`;
+    case 'runExited':
+      return `Victory! Rooms ${entry.data.roomsCleared} • Gems ${entry.data.gems} • Score ${entry.data.score}`;
     default:
       return 'Unknown event';
   }
 }
 
 export function AdventureLog({ address, tokenId }: AdventureLogProps) {
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => setIsClient(true), []);
   const { logs, isLoading } = useAdventureLog(address, tokenId);
+
+  if (!isClient) {
+    return (
+      <div className="p-4 bg-black/60 border border-amber-700/30 rounded-lg animate-pulse">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-2xl">📜</span>
+          <h3 className="text-xl font-bold text-amber-200">Adventure Log</h3>
+        </div>
+        <p className="text-gray-500 text-sm">Preparing log...</p>
+      </div>
+    );
+  }
 
   if (!address || !tokenId) {
     return (

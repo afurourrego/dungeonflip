@@ -1,521 +1,257 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useAccount } from 'wagmi';
-import { useNFTBalance, useNFTOwnerTokens, useAventurerStats } from '@/hooks/useNFT';
-import { useGame, usePlayerSession, useCanStartGame, useEntryFee } from '@/hooks/useGame';
-import { useGameStore } from '@/store/gameStore';
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { CARD_TYPES, GAME_CONFIG, CURRENT_NETWORK } from '@/lib/constants';
-import { ResumeGameDialog } from '@/components/ResumeGameDialog';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount, useWatchContractEvent } from 'wagmi';
+import { useNFTBalance, useNFTOwnerTokens, useAventurerStats, useDungeonApproval } from '@/hooks/useNFT';
+import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/useGame';
 import { AdventureLog } from '@/components/AdventureLog';
+import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
+import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
+
+const STATUS_COPY: Record<RunStatus, string> = {
+  [RunStatus.Idle]: 'Idle',
+  [RunStatus.Active]: 'Exploring',
+  [RunStatus.Paused]: 'Paused (NFT in wallet)',
+  [RunStatus.Dead]: 'Fallen hero',
+  [RunStatus.Completed]: 'Completed',
+};
+
+const CARD_LABELS = ['Monster', 'Trap', 'Potion +1', 'Full Heal', 'Treasure'];
+const CARD_EMOJIS = ['👹', '🕸️', '🧪', '💖', '💎'];
+
+type CardFeedItem = {
+  txHash: string;
+  cardType: number;
+  room: number;
+  hp: number;
+  gems: number;
+};
 
 export default function GamePage() {
   const { address, isConnected, chain } = useAccount();
-  const { data: nftBalance } = useNFTBalance(address);
-  const { data: playerSession, isLoading: isLoadingPlayerSession } = usePlayerSession(address);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  // Use tokenId from session if available (faster), otherwise fetch it
-  const sessionTokenId = playerSession?.tokenId && playerSession.tokenId > BigInt(0) ? playerSession.tokenId : undefined;
-  const { data: fetchedTokenId, isLoading: isLoadingTokenId, error: tokenIdError } = useNFTOwnerTokens(address);
-  const tokenId = sessionTokenId || fetchedTokenId;
+  const { data: nftBalance } = useNFTBalance(address);
+  const {
+    data: tokenId,
+    isLoading: isLoadingTokenId,
+    error: tokenError,
+    refetch: refetchTokenId,
+  } = useNFTOwnerTokens(address);
 
   const { data: stats } = useAventurerStats(tokenId);
-  
   const {
-    startGame: startGameContract,
-    completeGame: completeGameContract,
-    updateCheckpoint: updateCheckpointContract,
-    recordDeath: recordDeathContract,
-    logRoomCompletion: logRoomCompletionContract,
+    data: runState,
+    refetch: refetchRun,
+    isFetching: isFetchingRun,
+  } = useRunState(tokenId);
+  const { data: entryFee } = useEntryFee();
+  const { isApproved, requestApproval, isApproving: isApprovingApproval } = useDungeonApproval(address);
+
+  const {
+    enterDungeon,
+    chooseCard,
+    exitDungeon,
+    pauseRun,
+    claimAfterDeath,
+    forceWithdraw,
     isPending,
     isConfirming,
-    error: txError
-  } = useGame();
-  const { data: canStartGame, isLoading: isLoadingCanStart } = useCanStartGame(address);
-  const { data: contractEntryFee } = useEntryFee();
+    hash,
+  } = useGameContract();
 
-  // State for Resume dialog
-  const [showResumeDialog, setShowResumeDialog] = useState(false);
-  
-  // Debug effect
   useEffect(() => {
-    if (address) {
-      console.log('Debug NFT Info:', {
-        address,
-        nftBalance: nftBalance?.toString(),
-        tokenId: tokenId?.toString(),
-        isLoadingTokenId,
-        tokenIdError: tokenIdError?.message,
-        stats: stats ? { atk: stats.atk.toString(), def: stats.def.toString(), hp: stats.hp.toString() } : null,
-        playerSession: playerSession ? {
-          tokenId: (playerSession as any).tokenId?.toString(),
-          active: (playerSession as any).active,
-          startTime: (playerSession as any).startTime?.toString(),
-        } : null,
-        canStartGame,
-        contractEntryFee: contractEntryFee?.toString(),
-        configEntryFee: GAME_CONFIG.ENTRY_FEE,
-      });
+    if (!hash) return;
+    if (!isConfirming) {
+      // Refetch multiple times to handle RPC indexing delays
+      const doRefetch = async () => {
+        refetchRun();
+        refetchTokenId?.();
+        // Retry after delays to catch slow indexing
+        setTimeout(() => { refetchRun(); refetchTokenId?.(); }, 1000);
+        setTimeout(() => { refetchRun(); refetchTokenId?.(); }, 2500);
+        setTimeout(() => { refetchRun(); refetchTokenId?.(); }, 5000);
+      };
+      doRefetch();
     }
-  }, [address, nftBalance, tokenId, isLoadingTokenId, tokenIdError, stats, playerSession, canStartGame, contractEntryFee]);
-  
-  const {
-    isPlaying,
-    currentRoom,
-    playerHP,
-    maxHP,
-    gemsCollected,
-    cards,
-    inCombat,
-    currentMonster,
-    monsterHP,
-    combatLog,
-    playerATK,
-    playerDEF,
-    startNewGame,
-    resumeGame,
-    selectCard,
-    exitDungeon,
-    attack,
-    resetGame,
-    setCallbacks,
-  } = useGameStore();
+  }, [hash, isConfirming, refetchRun, refetchTokenId]);
 
-  const [gameStarted, setGameStarted] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [playerDied, setPlayerDied] = useState(false);
-  const [isConfirmingDeath, setIsConfirmingDeath] = useState(false);
+  const [cardFeed, setCardFeed] = useState<CardFeedItem[]>([]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useWatchContractEvent({
+    address: CONTRACTS.DUNGEON_GAME,
+    abi: DungeonGameABI.abi,
+    eventName: 'CardResolved',
+    args: tokenId ? { tokenId } : undefined,
+    onLogs: (logs) => {
+      const entries = logs
+        .map((log) => {
+          const args = (log as unknown as {
+            args: {
+              cardType: bigint;
+              room: bigint;
+              hp: bigint;
+              gems: bigint;
+            };
+          }).args;
+          return {
+            txHash: log.transactionHash || Math.random().toString(36),
+            cardType: Number(args.cardType),
+            room: Number(args.room),
+            hp: Number(args.hp),
+            gems: Number(args.gems),
+          } satisfies CardFeedItem;
+        })
+        .reverse();
+      if (entries.length) {
+        setCardFeed((prev) => [...entries, ...prev].slice(0, 6));
+        refetchRun();
+      }
+    },
+  });
 
-  // Detect active session on page load
-  useEffect(() => {
-    if (mounted && playerSession && playerSession.active && !isPlaying) {
-      console.log('Active session detected:', playerSession);
-      setShowResumeDialog(true);
-    }
-  }, [mounted, playerSession, isPlaying]);
-
-  // Detect when player dies (HP reaches 0 and game ends)
-  useEffect(() => {
-    if (mounted && !isPlaying && gameStarted && currentRoom > 0 && playerHP === 0 && !playerDied) {
-      console.log('Player died! HP reached 0');
-      setPlayerDied(true);
-    }
-  }, [mounted, isPlaying, gameStarted, currentRoom, playerHP, playerDied]);
-
-  // Use refs to store the latest contract functions without causing re-renders
-  const updateCheckpointRef = useRef(updateCheckpointContract);
-  const recordDeathRef = useRef(recordDeathContract);
-  const logRoomCompletionRef = useRef(logRoomCompletionContract);
-
-  // Keep refs updated
-  useEffect(() => {
-    updateCheckpointRef.current = updateCheckpointContract;
-    recordDeathRef.current = recordDeathContract;
-    logRoomCompletionRef.current = logRoomCompletionContract;
-  }, [updateCheckpointContract, recordDeathContract, logRoomCompletionContract]);
-
-  // Stable callback functions that use refs (won't change between renders)
-  // These will call blockchain transactions during gameplay
-  const handleCheckpoint = useCallback(async (currentRoom: number, currentHP: number, gemsCollected: number) => {
-    console.log(`🔖 Auto-checkpoint at room ${currentRoom} with ${currentHP} HP and ${gemsCollected} gems`);
-    try {
-      await updateCheckpointRef.current(currentRoom, currentHP, gemsCollected);
-      console.log('Checkpoint saved successfully');
-    } catch (error) {
-      console.error('Error saving checkpoint:', error);
-      // Don't block game if checkpoint fails
-    }
-  }, []);
-
-  const handleDeath = useCallback(async (roomNumber: number, finalGemsCollected: number) => {
-    console.log(`💀 Player died at room ${roomNumber} with ${finalGemsCollected} gems`);
-    setPlayerDied(true);
-    // Death will be recorded when user clicks "Confirm Death" button
-  }, []);
-
-  const handleRoomCompleted = useCallback(async (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => {
-    console.log(`✅ Room ${roomNumber} completed - Type: ${cardType}, HP: ${hpRemaining}, Gems: ${gemsCollected}`);
-    try {
-      await logRoomCompletionRef.current(roomNumber, cardType, hpRemaining, gemsCollected);
-      console.log('Room completion logged successfully');
-    } catch (error) {
-      console.error('Error logging room completion:', error);
-      // Don't block game if logging fails
-    }
-  }, []);
-
-  // Register blockchain callbacks only once on mount
-  useEffect(() => {
-    setCallbacks({
-      onCheckpoint: handleCheckpoint,
-      onDeath: handleDeath,
-      onRoomCompleted: handleRoomCompleted
-    });
-  }, [handleCheckpoint, handleDeath, handleRoomCompleted, setCallbacks]);
-
-  const hasNFT = mounted && nftBalance && Number(nftBalance) > 0;
-  const isTokenLoading = hasNFT && (isLoadingTokenId || tokenId === undefined || tokenId === null);
+  const ownsInWallet = typeof nftBalance === 'bigint' ? nftBalance > BigInt(0) : false;
+  // Consider having NFT if: owns in wallet, OR has tokenId, OR runState shows deposited
+  const hasNFT = mounted && (ownsInWallet || Boolean(tokenId) || Boolean(runState?.nftDeposited));
+  const status = runState?.status ?? RunStatus.Idle;
+  const isActive = status === RunStatus.Active;
+  const isPaused = status === RunStatus.Paused;
+  const isDead = status === RunStatus.Dead;
+  const isDeposited = Boolean(runState?.nftDeposited);
   const isWrongNetwork = chain?.id !== undefined && chain.id !== CURRENT_NETWORK.id;
-  const hasActiveSession = Boolean(playerSession && (playerSession as any).active);
-  const isCooldownBlocked = canStartGame === false;
-  const isSyncingState = isLoadingCanStart || isLoadingPlayerSession;
-  const isStartDisabled =
-    isPending ||
-    isConfirming ||
-    isTokenLoading ||
-    !stats ||
-    isSyncingState ||
-    isWrongNetwork ||
-    isCooldownBlocked ||
-    hasActiveSession;
+  const entryFeeDisplay = entryFee ? Number(entryFee) / 1e18 : Number(GAME_CONFIG.ENTRY_FEE);
 
-  const handleResumeGame = () => {
-    if (playerSession && stats) {
-      console.log('Resuming game from checkpoint:', playerSession);
-      // Resume game with checkpoint data - restore HP, room, and gems
-      resumeGame(
-        Number(stats.atk),
-        Number(stats.def),
-        Number(stats.hp), // maxHP
-        playerSession.currentRoom,
-        playerSession.currentHP,
-        playerSession.gemsCollected
-      );
-      setShowResumeDialog(false);
-    }
-  };
+  // Entry fee is only required for a fresh entry; resumes are free
+  const requiresEntryFee = runState?.status !== RunStatus.Paused;
+  const needsApproval = Boolean(address && tokenId && !isApproved);
+  const actionDisabled = !tokenId || isPending || isConfirming || isApprovingApproval || needsApproval;
+  const cardDisabled = actionDisabled || !isActive || !isDeposited;
 
+  const statusCopy = STATUS_COPY[status];
 
-  const handleStartGame = async () => {
-    console.log('=== HANDLE START GAME CLICKED ===');
-    console.log('Connected:', isConnected);
-    console.log('Address:', address);
-    console.log('Chain:', chain?.name, 'ID:', chain?.id);
-    console.log('NFT Balance:', nftBalance?.toString());
-    console.log('Token ID raw:', tokenId);
-    console.log('Token ID type:', typeof tokenId);
-    console.log('Token ID toString:', tokenId?.toString());
-    console.log('Has Stats:', !!stats);
-    console.log('Is Loading TokenId:', isLoadingTokenId);
-    console.log('Player Session:', playerSession);
-    console.log('Can Start Game:', canStartGame);
-    
-    if (!isConnected) {
-      alert('Por favor conecta tu wallet primero.');
-      return;
-    }
-    
-    if (isWrongNetwork) {
-      alert(`Por favor cambia a la red ${CURRENT_NETWORK.name}.`);
-      return;
-    }
-    
-    if (!hasNFT) {
-      alert('No tienes ningún NFT de aventurero. Por favor mintea uno primero en la página /mint.');
-      return;
-    }
-    
-    if (isTokenLoading) {
-      alert('Cargando información del NFT... Por favor espera un momento.');
-      return;
-    }
-    
-    if (!tokenId || tokenId === null || tokenId === undefined) {
-      console.error('No tokenId found despite having NFT balance:', nftBalance?.toString());
-      alert('Error: No se pudo obtener el ID del token. Balance de NFT: ' + nftBalance?.toString() + '. Por favor recarga la página.');
-      return;
-    }
-    
-    if (isSyncingState) {
-      alert('Sincronizando tu progreso con la blockchain... intenta de nuevo en unos segundos.');
-      return;
-    }
+  const canEnter = Boolean(hasNFT && tokenId && !isActive && !isPaused && !isDead);
+  const canResume = Boolean(tokenId && isPaused && !isDeposited);
+  const canExit = Boolean(isActive && isDeposited);
+  const canPause = canExit;
+  const canClaimAfterDeath = Boolean(isDead && isDeposited);
+  const canForceWithdraw = Boolean(!isActive && isDeposited && !isDead);
 
-    // Check if player can start game
-    if (isCooldownBlocked) {
-      alert('No puedes iniciar un nuevo juego en este momento. Puede que tengas un juego activo o necesites esperar el cooldown de 30 segundos.');
+  const cardButtons = useMemo(
+    () =>
+      Array.from({ length: 4 }).map((_, index) => ({
+        index,
+        label: `Card ${index + 1}`,
+      })),
+    []
+  );
+
+  const handleEnter = async () => {
+    if (!tokenId) return;
+    if (needsApproval) {
+      alert('Approve DungeonFlip to use your NFT before entering.');
       return;
     }
-    
-    // Check if player has active session
-    if (hasActiveSession) {
-      alert('Ya tienes un juego activo. Por favor completa el juego actual primero.');
-      return;
-    }
-    
-    console.log('Starting game with tokenId:', tokenId);
-    console.log('Entry fee from config:', GAME_CONFIG.ENTRY_FEE, 'ETH');
-    console.log('Entry fee from contract:', contractEntryFee?.toString(), 'wei');
-    
-    // Check if contract entry fee matches our config
-    if (contractEntryFee) {
-      const contractFeeInEth = Number(contractEntryFee) / 1e18;
-      const configFeeInEth = Number(GAME_CONFIG.ENTRY_FEE);
-      
-      if (Math.abs(contractFeeInEth - configFeeInEth) > 0.000001) {
-        alert(`⚠️ ADVERTENCIA: El entry fee del contrato (${contractFeeInEth} ETH) no coincide con el configurado (${configFeeInEth} ETH).\n\nEl contrato desplegado requiere ${contractFeeInEth} ETH.\n\nDebes redesplegar los contratos con el nuevo valor o actualizar la configuración.`);
-        console.error('Entry fee mismatch:', {
-          contractFee: contractFeeInEth,
-          configFee: configFeeInEth,
-          contractFeeWei: contractEntryFee.toString(),
-        });
+    try {
+      await enterDungeon(tokenId, { payEntryFee: requiresEntryFee });
+      refetchRun();
+    } catch (err) {
+      console.error('enterDungeon error', err);
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.toLowerCase().includes('user rejected')) {
+        alert('Transaction cancelled in wallet. You can try again anytime.');
         return;
       }
-    }
-    
-    try {
-      // Start game on blockchain
-      await startGameContract(tokenId as bigint);
-      console.log('Game started successfully');
-      setGameStarted(true);
-    } catch (error) {
-      console.error('Error starting game:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      alert(`Error al iniciar el juego: ${errorMessage}\n\nRevisa la consola para más detalles.`);
+      alert('Could not enter the dungeon. Check the console for details.');
     }
   };
 
-  useEffect(() => {
-    // When blockchain transaction confirms and we have stats, start the local game
-    if (gameStarted && stats && !isPlaying && !isPending && !isConfirming) {
-      startNewGame(
-        Number(stats.atk),
-        Number(stats.def),
-        Number(stats.hp)
-      );
-    }
-  }, [gameStarted, stats, isPlaying, isPending, isConfirming, startNewGame]);
-
-  const handleConfirmDeath = async () => {
-    const currentState = useGameStore.getState();
-    setIsConfirmingDeath(true);
-
+  const handleApprove = async () => {
     try {
-      console.log('Recording death on blockchain...');
-      await recordDeathContract(
-        currentState.currentRoom,
-        currentState.gemsCollected
-      );
+      await requestApproval();
+    } catch (err) {
+      console.error('setApprovalForAll error', err);
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.toLowerCase().includes('user rejected')) {
+        alert('Approval transaction cancelled. The game still needs permission to hold your NFT.');
+        return;
+      }
+      alert('Could not approve the game contract. Check the console for details.');
+    }
+  };
 
-      console.log('Death recorded successfully!');
-
-      // Reset local state after successful blockchain confirmation
-      setTimeout(() => {
-        resetGame();
-        setGameStarted(false);
-        setPlayerDied(false);
-        setIsConfirmingDeath(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Error recording death:', error);
-      alert('Error al confirmar la muerte. Por favor intenta de nuevo.');
-      setIsConfirmingDeath(false);
+  const handleChooseCard = async (cardIndex: number) => {
+    if (!tokenId) return;
+    try {
+      await chooseCard(tokenId, cardIndex);
+    } catch (err) {
+      console.error('chooseCard error', err);
+      alert('Card reveal failed. Please try again.');
     }
   };
 
   const handleExitDungeon = async () => {
-    // Get current game state before exiting
-    const currentState = useGameStore.getState();
-
+    if (!tokenId) return;
     try {
-      // Save final checkpoint before exiting (this will open wallet)
-      console.log('Saving final checkpoint before exit...');
-      await updateCheckpointContract(
-        currentState.currentRoom,
-        currentState.playerHP,
-        currentState.gemsCollected
-      );
-
-      // Complete game on blockchain
-      console.log('Completing game on blockchain...');
-      await completeGameContract();
-
-      console.log('Game completed successfully!');
-    } catch (error) {
-      console.error('Error completing game:', error);
-      alert('Error al salir del dungeon. Por favor intenta de nuevo.');
-      return; // Don't reset if there was an error
-    }
-
-    // Update local state
-    exitDungeon();
-
-    setTimeout(() => {
-      resetGame();
-      setGameStarted(false);
-    }, 3000);
-  };
-
-  const handleCardClick = (cardId: string) => {
-    if (inCombat) return;
-    selectCard(cardId);
-  };
-
-  const getCardImage = (type: number) => {
-    switch (type) {
-      case CARD_TYPES.MONSTER:
-        return '/cards/monster.png';
-      case CARD_TYPES.TREASURE:
-        return '/cards/gem.png';
-      case CARD_TYPES.TRAP:
-        return '/cards/trap.png';
-      case CARD_TYPES.POTION:
-        return '/cards/potion.png';
-      default:
-        return '/cards/reverse.png';
+      await exitDungeon(tokenId);
+      refetchRun();
+    } catch (err) {
+      console.error('exitDungeon error', err);
+      alert('Failed to exit the dungeon.');
     }
   };
 
-  const getCardEmoji = (type: number) => {
-    switch (type) {
-      case CARD_TYPES.MONSTER:
-        return '👹';
-      case CARD_TYPES.TREASURE:
-        return '💎';
-      case CARD_TYPES.TRAP:
-        return '🕸️';
-      case CARD_TYPES.POTION:
-        return '🧪';
-      default:
-        return '❓';
+  const handlePause = async () => {
+    if (!tokenId) return;
+    try {
+      await pauseRun(tokenId);
+      refetchRun();
+    } catch (err) {
+      console.error('pauseRun error', err);
+      alert('Failed to pause the run.');
     }
   };
 
-  const getCardName = (type: number) => {
-    switch (type) {
-      case CARD_TYPES.MONSTER:
-        return 'Monster';
-      case CARD_TYPES.TREASURE:
-        return 'Treasure';
-      case CARD_TYPES.TRAP:
-        return 'Trap';
-      case CARD_TYPES.POTION:
-        return 'Potion';
-      default:
-        return 'Unknown';
+  const handleClaimDeath = async () => {
+    if (!tokenId) return;
+    try {
+      await claimAfterDeath(tokenId);
+      refetchRun();
+    } catch (err) {
+      console.error('claimAfterDeath error', err);
+      alert('Could not claim the NFT after death.');
     }
   };
 
-  const getAventurerImage = (type: number) => {
-    switch (type) {
-      case CARD_TYPES.MONSTER:
-        return '/avatars/adventurer-monster.png';
-      case CARD_TYPES.TREASURE:
-        return '/avatars/adventurer-gem.png';
-      case CARD_TYPES.TRAP:
-        return '/avatars/adventurer-trap.png';
-      case CARD_TYPES.POTION:
-        return '/avatars/adventurer-potion.png';
-      default:
-        return '/avatars/adventurer-idle.png';
+  const handleForceWithdraw = async () => {
+    if (!tokenId) return;
+    try {
+      await forceWithdraw(tokenId);
+      refetchRun();
+    } catch (err) {
+      console.error('forceWithdraw error', err);
+      alert('Could not force the withdrawal.');
     }
   };
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl">⏳ Loading...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold mb-6">Connect Wallet to Play</h2>
-          <ConnectButton />
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasNFT) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h2 className="text-3xl font-bold mb-4">No Aventurer NFT Found</h2>
-          <p className="text-gray-300 mb-6">You need an Aventurer NFT to play DungeonFlip</p>
-          <Link
-            href="/mint"
-            className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-lg transition"
-          >
-            🎨 Mint Aventurer NFT
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900">
-      {/* Resume Dialog */}
-      {showResumeDialog && playerSession && playerSession.active && (
-        <ResumeGameDialog
-          session={playerSession}
-          onResume={handleResumeGame}
-        />
-      )}
-
-      {/* Death Confirmation Dialog */}
-      {playerDied && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-b from-red-900 to-red-950 border-2 border-red-500 rounded-lg p-6 max-w-md w-full shadow-2xl">
-            <h2 className="text-2xl font-bold text-yellow-400 mb-4">💀 You Died!</h2>
-
-            <div className="bg-black/40 rounded-lg p-4 mb-6">
-              <p className="text-gray-300 mb-3">
-                Your adventure has come to an end...
-              </p>
-
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-400">Room Reached:</p>
-                  <p className="text-white font-bold">{currentRoom}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Gems Collected:</p>
-                  <p className="text-blue-400 font-bold">{gemsCollected} 💎</p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleConfirmDeath}
-              disabled={isConfirmingDeath}
-              className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-red-500/50"
-            >
-              {isConfirmingDeath ? '⏳ Confirming...' : '☠️ Confirm Death & Record on Chain'}
-            </button>
-
-            <p className="text-xs text-gray-400 mt-4 text-center">
-              This will record your death on the blockchain and end your game session.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <header className="border-b border-purple-500/30 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-b from-black via-[#0a0014] to-black text-white">
+      <header className="border-b border-purple-500/30 backdrop-blur-sm sticky top-0 z-20">
+        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-3xl">⚔️</span>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              DungeonFlip
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold">DungeonFlip</h1>
+              <p className="text-xs text-purple-200/70">Base Sepolia</p>
+            </div>
           </Link>
           <nav className="flex items-center gap-6">
-            <Link href="/leaderboard" className="hover:text-purple-400 transition">
+            <Link href="/nfts" className="hover:text-purple-300 transition">
+              💎 NFTs
+            </Link>
+            <Link href="/leaderboard" className="hover:text-purple-300 transition">
               🏆 Leaderboard
             </Link>
             <ConnectButton />
@@ -523,253 +259,208 @@ export default function GamePage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {!isPlaying ? (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-purple-900/30 border border-purple-500/50 rounded-lg p-8 text-center">
-              <h2 className="text-3xl font-bold mb-6">Ready to Enter the Dungeon?</h2>
-              
-              {stats && tokenId !== undefined && tokenId !== null && (
-                <div className="bg-gray-800/50 rounded-lg p-6 mb-6">
-                  <h3 className="text-xl font-bold mb-4">Your Aventurer Stats (Token #{(tokenId as bigint).toString()})</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-red-400">⚔️ {stats.atk.toString()}</div>
-                      <div className="text-sm text-gray-400">Attack</div>
+      <main className="container mx-auto px-4 py-10">
+        <div className="grid lg:grid-cols-3 gap-6">
+          <section className="lg:col-span-2 space-y-6">
+            <div className="bg-black/40 border border-purple-500/30 rounded-xl p-6">
+              <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                <div>
+                  <p className="text-sm text-gray-400">Run Status</p>
+                  <p className="text-2xl font-bold text-purple-300">{statusCopy}</p>
+                </div>
+                <div className="text-sm text-gray-400">
+                  Entry fee: <span className="text-white font-semibold">{entryFeeDisplay.toFixed(5)} ETH</span>
+                </div>
+              </div>
+
+              {!mounted ? (
+                <p className="text-gray-400">Loading...</p>
+              ) : !isConnected ? (
+                <div className="text-center">
+                  <p className="text-gray-300 mb-4">Connect your wallet to get started.</p>
+                  <ConnectButton />
+                </div>
+              ) : isWrongNetwork ? (
+                <p className="text-red-300 font-semibold">
+                  Switch to {CURRENT_NETWORK.name} to play.
+                </p>
+              ) : !hasNFT ? (
+                <div className="text-center">
+                  <p className="text-gray-300 mb-4">You need an Aventurer NFT to play.</p>
+                  <Link
+                    href="/mint"
+                    className="inline-block bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold"
+                  >
+                    Mint NFT
+                  </Link>
+                </div>
+              ) : tokenError ? (
+                <p className="text-red-300">Error loading your NFT: {tokenError.message}</p>
+              ) : isLoadingTokenId && !tokenId ? (
+                <p className="text-gray-400">Searching for your Adventurer NFT...</p>
+              ) : !tokenId ? (
+                <p className="text-gray-400">No playable Adventurer found. Mint one or complete your current adventure.</p>
+              ) : (
+                <div className="space-y-6">
+                  {needsApproval && (
+                    <div className="bg-yellow-900/30 border border-yellow-500/40 rounded-lg p-4">
+                      <p className="text-sm text-yellow-100 mb-3">
+                        Authorize the DungeonFlip contract to hold your NFT while you explore. This is a one-time approval.
+                      </p>
+                      <button
+                        onClick={handleApprove}
+                        disabled={isApprovingApproval}
+                        className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                      >
+                        {isApprovingApproval ? '⏳ Approving...' : '✅ Enable Dungeon access'}
+                      </button>
                     </div>
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-blue-400">🛡️ {stats.def.toString()}</div>
-                      <div className="text-sm text-gray-400">Defense</div>
+                  )}
+                  <div className="grid md:grid-cols-4 gap-4 text-center">
+                    <div className="rounded-lg bg-purple-900/20 border border-purple-500/40 p-3">
+                      <p className="text-xs text-gray-400">Token</p>
+                      <p className="text-2xl font-bold">#{tokenId.toString()}</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-4xl font-bold text-green-400">❤️ {stats.hp.toString()}</div>
-                      <div className="text-sm text-gray-400">Health</div>
+                    <div className="rounded-lg bg-purple-900/20 border border-purple-500/40 p-3">
+                      <p className="text-xs text-gray-400">Room</p>
+                      <p className="text-2xl font-bold">{runState?.currentRoom ?? 0}</p>
+                    </div>
+                    <div className="rounded-lg bg-purple-900/20 border border-purple-500/40 p-3">
+                      <p className="text-xs text-gray-400">HP</p>
+                      <p className="text-2xl font-bold text-red-300">
+                        {runState?.currentHP ?? stats?.hp?.toString() ?? 0}/{runState?.maxHP ?? stats?.hp?.toString() ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-purple-900/20 border border-purple-500/40 p-3">
+                      <p className="text-xs text-gray-400">Gems</p>
+                      <p className="text-2xl font-bold text-yellow-300">{runState?.gems ?? 0}</p>
                     </div>
                   </div>
+
+                  {stats && (
+                    <div className="grid md:grid-cols-3 gap-4 text-center">
+                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+                        <p className="text-xs text-gray-400">ATK</p>
+                        <p className="text-2xl font-bold text-red-300">{stats.atk.toString()}</p>
+                      </div>
+                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+                        <p className="text-xs text-gray-400">DEF</p>
+                        <p className="text-2xl font-bold text-blue-300">{stats.def.toString()}</p>
+                      </div>
+                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+                        <p className="text-xs text-gray-400">Max HP</p>
+                        <p className="text-2xl font-bold text-green-300">{stats.hp.toString()}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <button
+                      onClick={handleEnter}
+                      disabled={actionDisabled || (!canEnter && !canResume)}
+                      className="w-full bg-gradient-to-r from-green-600 to-green-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                    >
+                      {canResume ? '🔁 Resume run (free)' : '⚔️ Enter the dungeon'}
+                    </button>
+                    <button
+                      onClick={handleExitDungeon}
+                      disabled={!canExit || actionDisabled}
+                      className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                    >
+                      🛡️ Exit victorious
+                    </button>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <button
+                      onClick={handlePause}
+                      disabled={!canPause || actionDisabled}
+                      className="w-full bg-purple-700/70 hover:bg-purple-600 disabled:bg-gray-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                    >
+                      ⏸️ Pause & withdraw NFT
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleClaimDeath}
+                        disabled={!canClaimAfterDeath || actionDisabled}
+                        className="flex-1 bg-red-700/70 hover:bg-red-600 disabled:bg-gray-800 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                      >
+                        💀 Claim after death
+                      </button>
+                      <button
+                        onClick={handleForceWithdraw}
+                        disabled={!canForceWithdraw || actionDisabled}
+                        className="flex-1 bg-gray-700/70 hover:bg-gray-600 disabled:bg-gray-900 disabled:cursor-not-allowed py-3 rounded-lg font-bold"
+                      >
+                        🔓 Force withdraw
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-400">
+                    {isFetchingRun
+                      ? 'Syncing run state...'
+                      : needsApproval
+                      ? 'Approve DungeonFlip to hold your NFT before entering.'
+                      : isDeposited
+                      ? 'NFT held in the contract. You can only manage one adventure at a time.'
+                      : 'NFT in your wallet. Only one Adventurer can explore at a time.'}
+                  </p>
                 </div>
               )}
+            </div>
 
-              <button
-                onClick={handleStartGame}
-                disabled={isStartDisabled}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 disabled:transform-none"
-              >
-                {isPending
-                  ? '⏳ Confirm in Wallet...'
-                  : isConfirming
-                    ? '⏳ Starting Game...'
-                    : isWrongNetwork
-                      ? `Cambia a ${CURRENT_NETWORK.name}`
-                      : !hasNFT
-                        ? 'Necesitas un Aventurer NFT'
-                        : isTokenLoading
-                          ? '⏳ Cargando NFT...'
-                          : isSyncingState
-                            ? '⏳ Sincronizando progreso...'
-                            : isCooldownBlocked
-                              ? 'Cooldown activo (30s)'
-                              : hasActiveSession
-                                ? 'Juego activo detectado'
-                                : '⚔️ Start Game (0.00001 ETH)'}
-              </button>
-
-              <p className="text-gray-400 text-sm mt-4">
-                Entry fee: 0.00001 ETH • 70% goes to weekly prize pool
+            <div className="bg-black/40 border border-purple-500/30 rounded-xl p-6">
+              <h3 className="text-xl font-bold mb-4">Pick a card</h3>
+              <p className="text-sm text-gray-400 mb-6">
+                Every selection creates an on-chain transaction. Cards resolve inside the contract, not in your browser.
               </p>
-              {(isCooldownBlocked || hasActiveSession) && (
-                <p className="text-yellow-200 text-xs mt-2">
-                  {hasActiveSession
-                    ? 'Tienes un juego guardado. Usa "Resume" para continuar o finalízalo antes de iniciar uno nuevo.'
-                    : 'Debes esperar 30 segundos desde tu última partida antes de iniciar otra.'}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {cardButtons.map(({ index, label }) => (
+                  <button
+                    key={label}
+                    onClick={() => handleChooseCard(index)}
+                    disabled={cardDisabled}
+                    className="bg-gradient-to-b from-purple-800 to-purple-900 border border-purple-500/40 rounded-xl py-6 text-center font-bold text-lg disabled:opacity-40"
+                  >
+                    ❓
+                    <div className="text-sm mt-2">{label}</div>
+                  </button>
+                ))}
+              </div>
+              {!isActive && (
+                <p className="text-xs text-gray-500 mt-4">
+                  You must be inside the dungeon with your NFT deposited to reveal cards.
                 </p>
               )}
-              {isSyncingState && (
-                <p className="text-purple-200 text-xs mt-2">Sincronizando datos on-chain… intenta nuevamente en breve.</p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto">
-            {/* Stats Bar */}
-            <div className="bg-gray-800/50 border border-purple-500/30 rounded-lg p-4 mb-6">
-              <div className="grid grid-cols-5 gap-4 text-center">
-                <div>
-                  <div className="text-sm text-gray-400">Room</div>
-                  <div className="text-2xl font-bold text-purple-400">{currentRoom}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-400">HP</div>
-                  <div className="text-2xl font-bold text-green-400">{playerHP}/{maxHP}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-400">ATK</div>
-                  <div className="text-2xl font-bold text-red-400">⚔️ {playerATK}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-400">DEF</div>
-                  <div className="text-2xl font-bold text-blue-400">🛡️ {playerDEF}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-400">Gems</div>
-                  <div className="text-2xl font-bold text-yellow-400">💎 {gemsCollected}</div>
-                </div>
-              </div>
             </div>
 
-            {/* Combat or Card Selection */}
-            {inCombat && currentMonster ? (
-              <div className="relative mb-6">
-                {/* Combat Overlay */}
-                <div className="combat-overlay absolute inset-0 -z-10 rounded-xl" />
-                
-                <div className="royal-board p-8">
-                  <div className="text-center mb-6">
-                    <div className="inline-block bg-red-900/40 border border-red-500/60 rounded-lg px-6 py-2 mb-4">
-                      <div className="text-lg font-bold text-red-300">⚔️ Your Turn!</div>
-                    </div>
-                    <h3 className="text-3xl font-bold text-red-400">
-                      Combat: {currentMonster.name}
-                    </h3>
-                  </div>
-                  
-                  <div className="flex justify-around items-center mb-8">
-                    <div className="character-card">
-                      <Image 
-                        src={getAventurerImage(CARD_TYPES.MONSTER)} 
-                        alt="Aventurer" 
-                        width={120} 
-                        height={120}
-                        className="mb-3 mx-auto"
-                      />
-                      <div className="text-xl font-bold text-amber-100">You</div>
-                      <div className="mt-3 space-y-1">
-                        <div className="text-green-400 dot-matrix">❤️ HP: {playerHP}/{maxHP}</div>
-                        <div className="text-red-400 dot-matrix">⚔️ ATK: {playerATK}</div>
-                        <div className="text-blue-400 dot-matrix">🛡️ DEF: {playerDEF}</div>
+            <div className="bg-black/40 border border-purple-500/30 rounded-xl p-6">
+              <h3 className="text-xl font-bold mb-4">Recent resolutions</h3>
+              {cardFeed.length === 0 ? (
+                <p className="text-gray-400 text-sm">Play a few cards to populate the history.</p>
+              ) : (
+                <div className="space-y-3">
+                  {cardFeed.map((event) => (
+                    <div key={event.txHash} className="flex items-center justify-between bg-black/30 border border-purple-500/20 rounded-lg p-3 text-sm">
+                      <div>
+                        <p className="font-semibold">
+                          {CARD_EMOJIS[event.cardType] ?? '❓'} {CARD_LABELS[event.cardType] ?? 'Unknown'}
+                        </p>
+                        <p className="text-xs text-gray-400">Room {event.room} • HP {event.hp} • Gems {event.gems}</p>
                       </div>
+                      <span className="text-[10px] text-gray-500">{event.txHash.slice(0, 10)}...</span>
                     </div>
-                    
-                    <div className="text-5xl animate-pulse">⚔️</div>
-                    
-                    <div className="character-card border-red-500/50 bg-red-900/20">
-                      <Image 
-                        src="/cards/monster.png" 
-                        alt={currentMonster.name} 
-                        width={120} 
-                        height={120}
-                        className="mb-3 mx-auto"
-                      />
-                      <div className="text-xl font-bold text-red-300">{currentMonster.name}</div>
-                      <div className="mt-3 space-y-1">
-                        <div className="text-red-400 dot-matrix">❤️ HP: {monsterHP}/{currentMonster.hp}</div>
-                        <div className="text-orange-400 dot-matrix">💥 DMG: {currentMonster.atk - playerDEF > 0 ? currentMonster.atk - playerDEF : 1}-{currentMonster.atk}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={attack}
-                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105 shadow-lg"
-                  >
-                    ⚔️ Attack!
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="mb-6">
-                <h3 className="text-3xl font-bold text-center mb-6 text-dungeon-gold">
-                  🏰 Room {currentRoom} - Choose Your Fate
-                </h3>
-                <div className="grid grid-cols-4 gap-4 mb-8">
-                  {cards.map((card) => (
-                    <button
-                      key={card.id}
-                      onClick={() => handleCardClick(card.id)}
-                      className="game-card group"
-                    >
-                      <div className="relative z-10">
-                        <Image 
-                          src={getCardImage(card.type)} 
-                          alt={getCardName(card.type)} 
-                          width={150} 
-                          height={200}
-                          className="mb-3 mx-auto"
-                        />
-                        <div className="font-bold text-lg text-amber-100">{getCardName(card.type)}</div>
-                        {card.monster && (
-                          <div className="text-sm text-amber-300/80 mt-2">
-                            {card.monster.name}
-                          </div>
-                        )}
-                        {card.gemValue && (
-                          <div className="text-lg text-yellow-400 mt-2 dot-matrix">
-                            +{card.gemValue} 💎
-                          </div>
-                        )}
-                      </div>
-                    </button>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Bottom Section: Character Card + Adventure Log */}
-            <div className="grid grid-cols-3 gap-6 mb-6">
-              {/* Character Card - Left */}
-              <div className="character-card">
-                <div className="text-center mb-4">
-                  <Image 
-                    src="/avatars/adventurer-idle.png" 
-                    alt="Your Aventurer" 
-                    width={120} 
-                    height={120}
-                    className="mx-auto mb-2"
-                  />
-                  <div className="text-xl font-bold text-amber-100">Your Aventurer</div>
-                  {tokenId !== undefined && tokenId !== null && (
-                    <div className="text-xs text-amber-300/70">Token #{(tokenId as bigint).toString()}</div>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <div className="stat-box">
-                    <div className="text-xs text-gray-400">Room</div>
-                    <div className="text-2xl font-bold text-purple-400 dot-matrix">{currentRoom}</div>
-                  </div>
-                  <div className="stat-box">
-                    <div className="text-xs text-gray-400">Health</div>
-                    <div className="text-2xl font-bold text-green-400 dot-matrix">❤️ {playerHP}/{maxHP}</div>
-                  </div>
-                  <div className="stat-box">
-                    <div className="text-xs text-gray-400">Attack</div>
-                    <div className="text-2xl font-bold text-red-400 dot-matrix">⚔️ {playerATK}</div>
-                  </div>
-                  <div className="stat-box">
-                    <div className="text-xs text-gray-400">Defense</div>
-                    <div className="text-2xl font-bold text-blue-400 dot-matrix">🛡️ {playerDEF}</div>
-                  </div>
-                  <div className="stat-box">
-                    <div className="text-xs text-gray-400">Gems</div>
-                    <div className="text-2xl font-bold text-yellow-400 dot-matrix">💎 {gemsCollected}</div>
-                  </div>
-                </div>
-                
-                {/* Exit Button inside Character Card */}
-                <button
-                  onClick={handleExitDungeon}
-                  disabled={inCombat}
-                  className="w-full mt-4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition shadow-lg"
-                >
-                  {inCombat ? '⚔️ In Combat!' : `🚪 Exit (Save ${gemsCollected} 💎)`}
-                </button>
-              </div>
-
-              {/* Adventure Log - Right (spans 2 columns) */}
-              <div className="col-span-2">
-                <AdventureLog address={address} tokenId={tokenId} />
-              </div>
+              )}
             </div>
-          </div>
-        )}
+          </section>
+
+          <section className="space-y-6">
+            <AdventureLog address={address} tokenId={tokenId} />
+          </section>
+        </div>
       </main>
     </div>
   );

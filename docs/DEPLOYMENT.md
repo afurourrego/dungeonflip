@@ -1,227 +1,139 @@
-# Guía de Deployment a Base Sepolia Testnet
+# Deployment Guide – Base Sepolia Testnet
 
-## Prerequisitos
+This guide explains how to deploy, verify, and smoke-test DungeonFlip on Base Sepolia. When you are ready for Base mainnet, repeat the same process with the `base` network flag.
 
-### 1. Configurar Variables de Entorno
+---
 
-Crea un archivo `.env` en la raíz del proyecto (si no existe):
+## 1. Prerequisites
+
+### Toolchain
+- **Node.js 20 LTS** (Hardhat is unstable on Node 22+)
+- npm 10+
+- Git and a modern shell (PowerShell, bash, zsh)
+
+Verify your Node version:
 
 ```bash
-# Private key de tu wallet (NO COMPARTAS ESTO)
-PRIVATE_KEY=tu_private_key_aqui
+node -v   # should print v20.x.x
+```
 
-# API Key de BaseScan (para verificación de contratos)
-BASESCAN_API_KEY=tu_basescan_api_key_aqui
+### Environment variables
+Create `.env` in the repository root (copy from `.env.example`) and populate:
 
-# RPC URLs (opcionales, ya hay públicos en hardhat.config.ts)
+```bash
+PRIVATE_KEY=your_private_key_without_0x
+BASESCAN_API_KEY=your_basescan_api_key
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 BASE_MAINNET_RPC_URL=https://mainnet.base.org
 ```
 
-### 2. Obtener ETH de Testnet
+### Testnet ETH
+1. Request Ethereum Sepolia ETH from a faucet (Alchemy, Infura, QuickNode).
+2. Bridge to Base Sepolia via https://bridge.base.org/ (Sepolia → Base Sepolia). ~0.02–0.05 ETH covers deployment + QA.
 
-Necesitas ETH en Base Sepolia para el deployment:
+---
 
-1. **Consigue Sepolia ETH gratis:**
-   - Faucet de Alchemy: https://sepoliafaucet.com/
-   - Faucet de Infura: https://www.infura.io/faucet/sepolia
-   - Faucet de QuickNode: https://faucet.quicknode.com/ethereum/sepolia
-
-2. **Bridge a Base Sepolia:**
-   - Ve a: https://bridge.base.org/
-   - Conecta tu wallet
-   - Selecciona Sepolia → Base Sepolia
-   - Bridge al menos 0.05 ETH (suficiente para deployment)
-
-### 3. Obtener API Key de BaseScan
-
-1. Ve a https://basescan.org/
-2. Crea una cuenta
-3. Ve a "API Keys"
-4. Crea un nuevo API key
-5. Cópialo al archivo `.env`
-
-## Deployment
-
-### Paso 1: Compilar Contratos
+## 2. Build & Test
 
 ```bash
-npx hardhat compile
+npm install          # run once
+npm run compile      # hardhat compile
+npm test             # optional but recommended
 ```
 
-### Paso 2: Ejecutar Tests (Opcional pero recomendado)
+---
+
+## 3. Deploy to Base Sepolia
 
 ```bash
-npx hardhat test
+npm run deploy:sepolia
+# wraps: hardhat run scripts/deploy.ts --network baseSepolia
 ```
 
-### Paso 3: Deploy a Base Sepolia
+The script deploys: AventurerNFT → FeeDistributor → ProgressTracker → RewardsPool → DungeonGame, then wires their addresses together.
+
+**Latest canonical deployment (Dec 7, 2025):**
+
+```
+AVENTURER_NFT_ADDRESS=0x23327A831E559549d7584218078538c547a10E67
+FEE_DISTRIBUTOR_ADDRESS=0xAa26dBcd21D32af565Fb336031171F4967fB3ca4
+PROGRESS_TRACKER_ADDRESS=0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E
+REWARDS_POOL_ADDRESS=0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb
+DUNGEON_GAME_ADDRESS=0x9E4cD14a37959b6852951fcfbf495d838e9e36A8
+```
+
+Update `frontend/lib/constants.ts` plus `.env`/`.env.example` whenever these change.
+
+---
+
+## 4. Verify on BaseScan
 
 ```bash
-npx hardhat run scripts/deploy.ts --network baseSepolia
+npx hardhat verify --network baseSepolia 0x23327A831E559549d7584218078538c547a10E67
+npx hardhat verify --network baseSepolia 0xAa26dBcd21D32af565Fb336031171F4967fB3ca4
+npx hardhat verify --network baseSepolia 0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E
+npx hardhat verify --network baseSepolia 0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb
+
+npx hardhat verify --network baseSepolia \
+  0x9E4cD14a37959b6852951fcfbf495d838e9e36A8 \
+  0x23327A831E559549d7584218078538c547a10E67 \
+  0xAa26dBcd21D32af565Fb336031171F4967fB3ca4 \
+  0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E \
+  0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb
 ```
 
-Verás una salida como esta:
+If Hardhat reports "already verified" the explorer URL is still printed and you can move on.
 
-```
-🚀 Starting DungeonFlip deployment to Base Sepolia...
+---
 
-📝 Deploying contracts with account: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-💰 Account balance: 0.05 ETH
-
-1️⃣  Deploying AventurerNFT...
-✅ AventurerNFT deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-
-2️⃣  Deploying FeeDistributor...
-✅ FeeDistributor deployed to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-
-...
-
-🎉 DEPLOYMENT SUCCESSFUL! 🎉
-```
-
-### Paso 4: Guardar Direcciones
-
-**Contratos desplegados en Base Sepolia (Dec 4, 2025):**
-
-```bash
-AVENTURER_NFT_ADDRESS=0x0c2E1ab7187F1Eb04628cFfb32ae55757C568cbb
-FEE_DISTRIBUTOR_ADDRESS=0xc11256E2889E162456adCFA97bB0D18e094DFCf9
-PROGRESS_TRACKER_ADDRESS=0x6e637BfB86217F30Bf95D8aD11dB9a63985b3bbE
-REWARDS_POOL_ADDRESS=0x4C7Fe76e2C62b1cC4d98306C44258D309b7c1492
-DUNGEON_GAME_ADDRESS=0xb4AD3C00FB9f77bf6c18CF6765Fe6F95d84f3042
-```
-
-Estas direcciones ya están actualizadas en `frontend/lib/constants.ts`.
-
-### Paso 5: Verificar Contratos en BaseScan
-
-Verifica cada contrato para que el código sea visible en BaseScan:
-
-```bash
-# AventurerNFT
-npx hardhat verify --network baseSepolia <AVENTURER_NFT_ADDRESS>
-
-# FeeDistributor
-npx hardhat verify --network baseSepolia <FEE_DISTRIBUTOR_ADDRESS>
-
-# ProgressTracker
-npx hardhat verify --network baseSepolia <PROGRESS_TRACKER_ADDRESS>
-
-# RewardsPool
-npx hardhat verify --network baseSepolia <REWARDS_POOL_ADDRESS>
-
-# DungeonGame (con argumentos del constructor)
-npx hardhat verify --network baseSepolia <DUNGEON_GAME_ADDRESS> \
-  <AVENTURER_NFT_ADDRESS> \
-  <FEE_DISTRIBUTOR_ADDRESS> \
-  <PROGRESS_TRACKER_ADDRESS> \
-  <REWARDS_POOL_ADDRESS>
-```
-
-## Verificación del Deployment
-
-### 1. Verificar en BaseScan
-
-Visita: `https://sepolia.basescan.org/address/<DUNGEON_GAME_ADDRESS>`
-
-Deberías ver:
-- ✅ Código del contrato verificado
-- ✅ Transacciones de deployment
-- ✅ Configuración correcta
-
-### 2. Probar Funcionalidad Básica
-
-Usando Hardhat console:
+## 5. Smoke Test the Deployment
 
 ```bash
 npx hardhat console --network baseSepolia
 ```
 
 ```javascript
-// Conectar a los contratos
-const nft = await ethers.getContractAt("AventurerNFT", "0x...");
-const game = await ethers.getContractAt("DungeonGame", "0x...");
+const nft = await ethers.getContractAt("AventurerNFT", "0x23327A831E559549d7584218078538c547a10E67");
+const game = await ethers.getContractAt("DungeonGame", "0x9E4cD14a37959b6852951fcfbf495d838e9e36A8");
 
-// Mintear un NFT
 await nft.mintAventurer();
-
-// Verificar NFT
-const balance = await nft.balanceOf("tu_address");
-console.log("NFTs:", balance.toString());
-
-// Obtener stats del NFT
-const stats = await nft.getAventurerStats(1);
-console.log("Stats:", {
-  atk: stats.atk.toString(),
-  def: stats.def.toString(),
-  hp: stats.hp.toString()
-});
-
-// Jugar una partida
-const entryFee = ethers.parseEther("0.01");
-await game.startGame(1, { value: entryFee });
-await game.completeGame();
-
-// Verificar progreso
-const tracker = await ethers.getContractAt("ProgressTracker", "0x...");
-const progress = await tracker.getPlayerProgress("tu_address");
-console.log("Score:", progress.totalScore.toString());
+const tokenId = await nft.totalSupply();
+await game.enterDungeon(tokenId, { value: ethers.parseEther("0.00001") });
+await game.chooseCard(tokenId, 0);
+await game.exitDungeon(tokenId);
 ```
 
-## Troubleshooting
+Confirm on https://sepolia.basescan.org/ that `RunStarted`, `CardResolved`, and `RunExited` events fired, and that the NFT transferred into/out of `DungeonGame` as expected.
 
-### Error: "insufficient funds"
-- Necesitas más ETH en Base Sepolia
-- Usa el bridge: https://bridge.base.org/
+---
 
-### Error: "already verified"
-- El contrato ya está verificado
-- Puedes omitir este paso
+## 6. Troubleshooting
 
-### Error: "nonce too high"
-- Espera unos segundos y reintenta
-- O usa: `npx hardhat clean`
+| Issue | Resolution |
+| --- | --- |
+| `insufficient funds` | Bridge more ETH to Base Sepolia (https://bridge.base.org/). |
+| `already verified` | Safe to ignore; the contract is already published. |
+| `nonce too high` | Wait for pending txs or run `npx hardhat clean` before redeploying. |
+| `replacement transaction underpriced` | Increase the gas price or wait for the pending tx to confirm. |
+| Hardhat libuv assertion | Ensure `node -v` reports 20.x.x and reinstall dependencies. |
 
-### Error: "replacement transaction underpriced"
-- Aumenta el gas price en hardhat.config.ts
-- O espera y reintenta
+---
 
-## Deployment a Mainnet
+## 7. Promoting to Base Mainnet
 
-⚠️ **IMPORTANTE:** Antes de deployar a mainnet:
+1. Fund the deployer wallet with Base mainnet ETH.
+2. Update `.env` with a mainnet RPC URL.
+3. Run `npx hardhat run scripts/deploy.ts --network base`.
+4. Re-run the verification commands with `--network base`.
+5. Update frontend constants and redeploy the UI.
 
-1. Haz deployment y prueba exhaustivamente en testnet
-2. Haz un security audit
-3. Consigue suficiente ETH en Base mainnet
-4. Cambia el network a `baseMainnet`:
+---
 
-```bash
-npx hardhat run scripts/deploy.ts --network baseMainnet
-```
+## 8. Reference Links
 
-## Costos Estimados
+- Base docs – https://docs.base.org/
+- Base bridge – https://bridge.base.org/
+- Base Sepolia explorer – https://sepolia.basescan.org/
+- Hardhat docs – https://hardhat.org/docs
 
-### Base Sepolia (Testnet)
-- **Gratis** - Solo necesitas ETH de testnet
-
-### Base Mainnet (Producción)
-- Deployment de 5 contratos: ~0.02-0.04 ETH
-- Verificación: Gratis
-- Gas en Base es mucho más barato que Ethereum mainnet
-
-## Recursos Adicionales
-
-- **Base Docs:** https://docs.base.org/
-- **Base Bridge:** https://bridge.base.org/
-- **BaseScan:** https://basescan.org/
-- **Base Sepolia Explorer:** https://sepolia.basescan.org/
-- **Hardhat Docs:** https://hardhat.org/docs
-
-## Soporte
-
-Si tienes problemas:
-1. Revisa los logs de error detalladamente
-2. Verifica que tienes suficiente ETH
-3. Confirma que las variables de entorno están correctas
-4. Revisa la documentación oficial de Base
+Need help? Inspect the Hardhat output, double-check `.env`, and make sure the wallet holds enough ETH for gas.

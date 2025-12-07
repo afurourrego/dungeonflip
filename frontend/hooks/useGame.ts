@@ -3,102 +3,171 @@ import { parseEther } from 'viem';
 import { CONTRACTS, GAME_CONFIG } from '@/lib/constants';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 
-export interface GameSession {
-  tokenId: bigint;
-  levelsCompleted: bigint;
-  scoreEarned: bigint;
-  timestamp: bigint;
-  active: boolean;
-  currentRoom: number;
-  currentHP: number;
-  gemsCollected: number;
-  lastCheckpointTime: bigint;
-  seed: bigint;
+const ABI = DungeonGameABI.abi;
+const DEFAULT_GAS_LIMIT = BigInt(350_000);
+
+export enum RunStatus {
+  Idle = 0,
+  Active = 1,
+  Paused = 2,
+  Dead = 3,
+  Completed = 4,
 }
 
-export function useGame() {
-  const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
+export interface RunState {
+  owner: `0x${string}`;
+  status: RunStatus;
+  nftDeposited: boolean;
+  currentRoom: number;
+  currentHP: number;
+  maxHP: number;
+  atk: number;
+  def: number;
+  gems: number;
+  lastSeed: bigint;
+  lastAction: bigint;
+}
+
+const defaultState: RunState = {
+  owner: '0x0000000000000000000000000000000000000000',
+  status: RunStatus.Idle,
+  nftDeposited: false,
+  currentRoom: 0,
+  currentHP: 0,
+  maxHP: 0,
+  atk: 0,
+  def: 0,
+  gems: 0,
+  lastSeed: BigInt(0),
+  lastAction: BigInt(0),
+};
+
+const safeNumber = (value?: bigint | number) => {
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'number') return value;
+  return 0;
+};
+
+export function useRunState(tokenId?: bigint) {
+  const result = useReadContract({
+    address: CONTRACTS.DUNGEON_GAME,
+    abi: ABI,
+    functionName: 'tokenRuns',
+    args: tokenId ? [tokenId] : undefined,
+    query: {
+      enabled: tokenId !== undefined,
+      refetchInterval: 3000, // Faster refresh
+      staleTime: 2000,
+    },
   });
 
-  const startGame = async (tokenId: bigint) => {
-    try {
-      await writeContract({
-        address: CONTRACTS.DUNGEON_GAME,
-        abi: DungeonGameABI.abi,
-        functionName: 'startGame',
-        args: [tokenId],
-        value: parseEther(GAME_CONFIG.ENTRY_FEE),
-      });
-    } catch (err) {
-      console.error('Error in startGame:', err);
-      throw err;
-    }
+  // Contract returns an array, not an object with named properties
+  // Order: [lastKnownOwner, status, nftDeposited, currentRoom, currentHP, maxHP, atk, def, gems, lastSeed, lastAction]
+  const rawArray = result.data as undefined | readonly [
+    `0x${string}`,  // [0] lastKnownOwner
+    number,         // [1] status
+    boolean,        // [2] nftDeposited
+    bigint,         // [3] currentRoom
+    bigint,         // [4] currentHP
+    bigint,         // [5] maxHP
+    bigint,         // [6] atk
+    bigint,         // [7] def
+    bigint,         // [8] gems
+    bigint,         // [9] lastSeed
+    bigint,         // [10] lastAction
+  ];
+
+  const parsed: RunState | undefined = rawArray
+    ? {
+        owner: rawArray[0],
+        status: Number(rawArray[1]) as RunStatus,
+        nftDeposited: rawArray[2],
+        currentRoom: safeNumber(rawArray[3]),
+        currentHP: safeNumber(rawArray[4]),
+        maxHP: safeNumber(rawArray[5]),
+        atk: safeNumber(rawArray[6]),
+        def: safeNumber(rawArray[7]),
+        gems: safeNumber(rawArray[8]),
+        lastSeed: rawArray[9],
+        lastAction: rawArray[10],
+      }
+    : tokenId
+    ? defaultState
+    : undefined;
+
+  return {
+    ...result,
+    data: parsed,
+  };
+}
+
+export function useGameContract() {
+  const { writeContractAsync, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  const enterDungeon = async (tokenId: bigint, { payEntryFee }: { payEntryFee: boolean }) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'enterDungeon',
+      args: [tokenId],
+      value: payEntryFee ? parseEther(GAME_CONFIG.ENTRY_FEE) : BigInt(0),
+      gas: DEFAULT_GAS_LIMIT,
+    });
   };
 
-  const completeGame = async () => {
-    try {
-      await writeContract({
-        address: CONTRACTS.DUNGEON_GAME,
-        abi: DungeonGameABI.abi,
-        functionName: 'completeGame',
-      });
-    } catch (err) {
-      console.error('Error in completeGame:', err);
-      throw err;
-    }
+  const chooseCard = async (tokenId: bigint, cardIndex: number) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'chooseCard',
+      args: [tokenId, cardIndex],
+    });
   };
 
-
-  const updateCheckpoint = async (currentRoom: number, currentHP: number, gemsCollected: number) => {
-    try {
-      await writeContract({
-        address: CONTRACTS.DUNGEON_GAME,
-        abi: DungeonGameABI.abi,
-        functionName: 'updateCheckpoint',
-        args: [currentRoom, currentHP, gemsCollected],
-      });
-    } catch (err) {
-      console.error('Error in updateCheckpoint:', err);
-      throw err;
-    }
+  const exitDungeon = async (tokenId: bigint) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'exitDungeon',
+      args: [tokenId],
+    });
   };
 
-  const recordDeath = async (roomNumber: number, finalGemsCollected: number) => {
-    try {
-      await writeContract({
-        address: CONTRACTS.DUNGEON_GAME,
-        abi: DungeonGameABI.abi,
-        functionName: 'recordDeath',
-        args: [roomNumber, finalGemsCollected],
-      });
-    } catch (err) {
-      console.error('Error in recordDeath:', err);
-      throw err;
-    }
+  const pauseRun = async (tokenId: bigint) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'pauseRun',
+      args: [tokenId],
+    });
   };
 
-  const logRoomCompletion = async (roomNumber: number, cardType: number, hpRemaining: number, gemsCollected: number) => {
-    try {
-      await writeContract({
-        address: CONTRACTS.DUNGEON_GAME,
-        abi: DungeonGameABI.abi,
-        functionName: 'logRoomCompletion',
-        args: [roomNumber, cardType, hpRemaining, gemsCollected],
-      });
-    } catch (err) {
-      console.error('Error in logRoomCompletion:', err);
-      throw err;
-    }
+  const claimAfterDeath = async (tokenId: bigint) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'claimAfterDeath',
+      args: [tokenId],
+    });
+  };
+
+  const forceWithdraw = async (tokenId: bigint) => {
+    return writeContractAsync({
+      address: CONTRACTS.DUNGEON_GAME,
+      abi: ABI,
+      functionName: 'forceWithdraw',
+      args: [tokenId],
+    });
   };
 
   return {
-    startGame,
-    completeGame,
-    updateCheckpoint,
-    recordDeath,
-    logRoomCompletion,
+    enterDungeon,
+    chooseCard,
+    exitDungeon,
+    pauseRun,
+    claimAfterDeath,
+    forceWithdraw,
     isPending,
     isConfirming,
     isConfirmed,
@@ -107,104 +176,13 @@ export function useGame() {
   };
 }
 
-export function useActiveSession(address?: `0x${string}`) {
-  return useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'activeSessions',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
-  }) as { data: GameSession | undefined; isLoading: boolean; error: Error | null };
-}
-
-export function useLastPlayTime(address?: `0x${string}`) {
-  return useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'lastPlayTime',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
-  });
-}
-
-export function useCurrentWeek() {
-  return useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'currentWeek',
-  });
-}
-
-export function usePlayerSession(address?: `0x${string}`) {
-  const result = useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'getPlayerSession',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-      staleTime: 10000, // Cache for 10 seconds
-      refetchInterval: 15000, // Refetch every 15 seconds to detect changes
-    },
-  });
-
-  // Transform the array result into a typed GameSession object
-  const data = result.data as [bigint, bigint, bigint, bigint, boolean, number, number, number, bigint, bigint] | undefined;
-
-  const session: GameSession | undefined = data ? {
-    tokenId: data[0],
-    levelsCompleted: data[1],
-    scoreEarned: data[2],
-    timestamp: data[3],
-    active: data[4],
-    currentRoom: data[5],
-    currentHP: data[6],
-    gemsCollected: data[7],
-    lastCheckpointTime: data[8],
-    seed: data[9],
-  } : undefined;
-
-  return {
-    ...result,
-    data: session,
-  };
-}
-
-export function useCanStartGame(address?: `0x${string}`) {
-  return useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'canStartGame',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-      staleTime: 5000, // Cache for 5 seconds
-    },
-  });
-}
-
 export function useEntryFee() {
   return useReadContract({
     address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
+    abi: ABI,
     functionName: 'ENTRY_FEE',
     query: {
-      staleTime: Infinity, // Never refetch (constant value)
-    },
-  });
-}
-
-export function useGameCooldown() {
-  return useReadContract({
-    address: CONTRACTS.DUNGEON_GAME,
-    abi: DungeonGameABI.abi,
-    functionName: 'GAME_COOLDOWN',
-    query: {
-      staleTime: Infinity, // Never refetch (constant value)
+      staleTime: Infinity,
     },
   });
 }

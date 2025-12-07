@@ -1,181 +1,113 @@
-# 📊 Estado Actual del Proyecto DungeonFlip
+## 📊 DungeonFlip – Project Status Report
 
-**Fecha:** 4 de Diciembre, 2025  
-**Última Actualización:** Redeployment completo con ENTRY_FEE corregido
-
----
-
-## ✅ Estado de Contratos Inteligentes
-
-### Contratos Desplegados en Base Sepolia
-
-| Contrato | Dirección | Estado | Verificado |
-|----------|-----------|--------|------------|
-| AventurerNFT | `0x0c2E1ab7187F1Eb04628cFfb32ae55757C568cbb` | ✅ Desplegado | ⏳ Pendiente |
-| FeeDistributor | `0xc11256E2889E162456adCFA97bB0D18e094DFCf9` | ✅ Desplegado | ⏳ Pendiente |
-| ProgressTracker | `0x6e637BfB86217F30Bf95D8aD11dB9a63985b3bbE` | ✅ Desplegado | ⏳ Pendiente |
-| RewardsPool | `0x4C7Fe76e2C62b1cC4d98306C44258D309b7c1492` | ✅ Desplegado | ⏳ Pendiente |
-| DungeonGame | `0xb4AD3C00FB9f77bf6c18CF6765Fe6F95d84f3042` | ✅ Desplegado | ⏳ Pendiente |
-
-### Configuración de Contratos
-
-- **ENTRY_FEE:** 0.00001 ETH ✅
-- **GAME_COOLDOWN:** 30 segundos ✅
-- **MAX_DUNGEON_LEVEL:** 10 niveles ✅
-- **Distribución de Fees:** 70% Pool / 20% Dev / 10% Marketing ✅
-
-### Tests
-
-- **Total de Tests:** 201 tests
-- **Estado:** ✅ Todos pasando
-- **Coverage:** Completo en todos los contratos principales
+**Date:** December 7, 2025  
+**Scope:** Custodial DungeonGame build (Base Sepolia)  
+**Latest Update:** Contracts redeployed with `activeTokenByWallet` mapping for instant NFT lookup
 
 ---
 
-## ✅ Estado del Frontend
+## ✅ Smart-Contract Status
 
-### Configuración
+### Base Sepolia Deployments
 
-- **Framework:** Next.js 16.0.7 con webpack
-- **Build Status:** ✅ Compilando correctamente
-- **Dev Server:** ✅ Corriendo en http://localhost:3000
-- **Web3 Stack:** Wagmi 3.1.0 + Viem 2.41.2 + RainbowKit 2.2.9
+| Contract | Address | Status |
+| --- | --- | --- |
+| AventurerNFT | `0x23327A831E559549d7584218078538c547a10E67` | ✅ Deployed & verified |
+| FeeDistributor | `0xAa26dBcd21D32af565Fb336031171F4967fB3ca4` | ✅ Deployed & verified |
+| ProgressTracker | `0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E` | ✅ Deployed & verified |
+| RewardsPool | `0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb` | ✅ Deployed & verified |
+| DungeonGame | `0x9E4cD14a37959b6852951fcfbf495d838e9e36A8` | ✅ Deployed & verified |
 
-### Páginas Implementadas
+**Config snapshot**
+- `ENTRY_FEE`: 0.00001 ETH
+- `GAME_COOLDOWN`: 30 seconds
+- Custody: NFT must stay in DungeonGame while the run is active
+- Fee split: 70% rewards / 20% dev treasury / 10% marketing
 
-| Página | Ruta | Estado | Funcionalidad |
-|--------|------|--------|---------------|
-| Home | `/` | ✅ OK | Landing page con info del juego |
-| Mint | `/mint` | ✅ OK | Minteo de aventureros NFT |
-| Game | `/game` | ✅ OK | Juego principal (card gameplay) |
-| Leaderboard | `/leaderboard` | ✅ OK | Rankings y estadísticas |
-
-### Correcciones Recientes
-
-1. ✅ Fixed: Async handling en `useGame` hook
-2. ✅ Fixed: Token ownership checking sin `tokenOfOwnerByIndex`
-3. ✅ Fixed: React hydration errors
-4. ✅ Fixed: TypeScript bigint errors
-5. ✅ Fixed: Null safety en leaderboard
-6. ✅ Fixed: Build con webpack en lugar de Turbopack
-
-### ABIs
-
-- ✅ Todos los ABIs actualizados en `frontend/lib/contracts/`
-- ✅ ABIs sincronizados con los contratos desplegados
+**Testing summary**
+- Hardhat unit tests: 201 (100% passing)
+- Coverage: Critical contracts fully covered (AventurerNFT, DungeonGame, FeeDistributor, ProgressTracker, RewardsPool)
+- Node requirement: v20.18.1 LTS (Hardhat crashes on newer releases)
 
 ---
 
-## 🔧 Problemas Conocidos
+## ✅ Frontend Status
 
-### Menores (No Críticos)
+- Framework: Next.js 16.0.7 (React 19) with webpack
+- Web3 stack: wagmi 3.1.0 + viem 2.41.2 + RainbowKit 2.2.9
+- Build status: `npm run build` succeeds (warnings only for dual lockfiles)
+- Dev server: `npm run dev -- --hostname 0.0.0.0 --port 3000` (default http://localhost:3000)
 
-1. **Warning: Multiple lockfiles**
-   - Location: Root y frontend tienen package-lock.json separados
-   - Impact: Solo warning, no afecta funcionalidad
-   - Fix: Considerar estructura de monorepo o eliminar uno
+| Page | Route | Status | Notes |
+| --- | --- | --- | --- |
+| Landing | `/` | ✅ | Promo copy + CTAs |
+| Mint | `/mint` | ✅ | Free Aventurer minting wired to new contract |
+| Game | `/game` | ✅ | Uses custodial flow (`useRunState`, card actions on-chain) |
+| Leaderboard | `/leaderboard` | ✅ | Reads ProgressTracker stats |
 
-2. **Warning: Módulo 'porto/internal' no encontrado**
-   - Location: Dependencia opcional de wagmi
-   - Impact: Solo warning de build, no afecta funcionalidad
-   - Status: Ignorado en webpack config
-
-3. **Token Detection Limitation**
-   - Location: `useNFTOwnerTokens` hook
-   - Issue: Solo revisa tokens 1, 2, 3 (hardcoded)
-   - Impact: Suficiente para testing, no escalable para producción
-   - TODO: Implementar backend indexer o agregar ERC721Enumerable
-
----
-
-## 📝 Pendiente
-
-### Testing del Usuario
-
-- [ ] Mintear nuevo NFT desde nuevo contrato
-- [ ] Probar Start Game con 0.00001 ETH
-- [ ] Completar un juego completo (start → play → complete)
-- [ ] Verificar distribución de fees
-- [ ] Probar leaderboard con datos reales
-
-### Deployment
-
-- [ ] Verificar contratos en BaseScan
-- [ ] Documentar transacciones de verificación
-- [ ] Considerar deployment a mainnet después de testing
-
-### Mejoras Futuras
-
-- [ ] Implementar backend indexer para mejor token tracking
-- [ ] Agregar más niveles de dungeon
-- [ ] Implementar sistema de achievements
-- [ ] Mejorar UI/UX con animaciones
-- [ ] Agregar sonidos y música
-- [ ] Implementar sistema de chat/social
+Recent fixes:
+1. Wagmi `useWatchContractEvent` updated to new API (`onLogs`)
+2. Adventure log hook rewritten to fetch `CardResolved`, `RunStarted`, etc.
+3. Resume dialog decoupled from removed Zustand store
+4. BigInt literals replaced with `BigInt()` helpers to satisfy TS target
+5. Build now enforces webpack mode to avoid Turbopack warnings
 
 ---
 
-## 🚀 Cómo Probar el Proyecto
+## 🔧 Known Issues / Technical Debt
 
-### 1. Prerequisites
-
-```bash
-# Tener ETH en Base Sepolia
-# Wallet compatible (MetaMask, Coinbase Wallet)
-```
-
-### 2. Acceder a la App
-
-```bash
-# Dev server ya está corriendo en:
-http://localhost:3000
-```
-
-### 3. Flujo de Testing
-
-1. **Conectar Wallet** → Usar botón "Connect Wallet"
-2. **Mint NFT** → Ir a `/mint` y mintear aventurero (gratis)
-3. **Start Game** → Ir a `/game` y pagar 0.00001 ETH
-4. **Play Cards** → Jugar a través de 10 niveles
-5. **Check Leaderboard** → Ver tu ranking en `/leaderboard`
+1. **Dual package-lock files** – Next.js issues a warning because both the root and `frontend/` keep independent lockfiles. Functionally harmless but noisy; consider moving to pnpm workspaces or a single lockfile.
+2. **Optional wagmi dependency warning** – `porto/internal` is optional; webpack logs a warning but runtime is unaffected.
+3. **Token scan utility** – `useNFTOwnerTokens` still brute-forces the first few token IDs. Adequate for QA but needs either ERC721Enumerable or an indexer before launch.
 
 ---
 
-## 📚 Documentación
+## 🧪 Pending QA Checklist
 
-- ✅ **DEPLOYMENT.md** - Guía completa de deployment actualizada
-- ✅ **README.md** - Documentación principal del proyecto
-- ✅ **PROJECT_PLAN.md** - Plan original del proyecto
-- ✅ **AI Logs** - Documentación del proceso de desarrollo con IA
-
----
-
-## 🔗 Links Importantes
-
-- **Base Sepolia Explorer:** https://sepolia.basescan.org/
-- **Base Bridge:** https://bridge.base.org/
-- **Contracts on Explorer:**
-  - [AventurerNFT](https://sepolia.basescan.org/address/0x0c2E1ab7187F1Eb04628cFfb32ae55757C568cbb)
-  - [DungeonGame](https://sepolia.basescan.org/address/0xb4AD3C00FB9f77bf6c18CF6765Fe6F95d84f3042)
-  - [RewardsPool](https://sepolia.basescan.org/address/0x4C7Fe76e2C62b1cC4d98306C44258D309b7c1492)
+- [x] Mint at least two NFTs per wallet using the new AventurerNFT
+- [x] Enter a dungeon run (fresh deposit) and verify entry-fee routing via FeeDistributor balances
+- [x] Execute multiple `chooseCard` actions and confirm `CardResolved` events update the UI
+- [ ] Pause a run to withdraw the NFT, then resume (no entry fee) and finish the dungeon
+- [ ] Trigger a death scenario and use `claimAfterDeath` to recover the NFT
+- [ ] Exit a victorious run and confirm ProgressTracker score increases + leaderboard refreshes
+- [ ] Validate RewardsPool can withdraw funds from FeeDistributor (dry-run distribution with mock addresses)
 
 ---
 
-## 📊 Métricas de Desarrollo
+## 📚 Documentation State
 
-- **Contratos:** 5 contratos principales
-- **Tests:** 201 tests (100% passing)
-- **Líneas de Código:**
-  - Solidity: ~1,500 LOC
-  - TypeScript (Frontend): ~2,000 LOC
-  - TypeScript (Tests): ~1,200 LOC
-- **Desarrollo con IA:** 100% asistido por GitHub Copilot
-- **Tiempo de Desarrollo:** Hackathon sprint
+- `README.md` – ✅ Updated (Node 20 requirement, live addresses)
+- `docs/DEPLOYMENT.md` – ✅ English + reflects Dec 5 redeploy
+- `PROJECT_PLAN.md` – ✅ Original roadmap (kept for history)
+- `PROJECT_STATUS.md` – ✅ This file
+- `ai_logs/` – ✅ Includes prompts, iterations, tools, and challenges
 
 ---
 
-## ✨ Conclusión
+## 🔗 Reference Links
 
-**El proyecto está funcionalmente completo y listo para testing de usuario.**
+- Base Sepolia Explorer: https://sepolia.basescan.org/
+- Bridge to Base Sepolia: https://bridge.base.org/
+- Verified contracts:
+   - AventurerNFT – https://sepolia.basescan.org/address/0x23327A831E559549d7584218078538c547a10E67#code
+   - FeeDistributor – https://sepolia.basescan.org/address/0xAa26dBcd21D32af565Fb336031171F4967fB3ca4#code
+   - ProgressTracker – https://sepolia.basescan.org/address/0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E#code
+   - RewardsPool – https://sepolia.basescan.org/address/0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb#code
+   - DungeonGame – https://sepolia.basescan.org/address/0x9E4cD14a37959b6852951fcfbf495d838e9e36A8#code
 
-Todos los componentes principales están implementados, desplegados y conectados correctamente. Solo se requiere testing de usuario para validar el flujo completo del juego antes de considerar un deployment a mainnet.
+---
+
+## 📈 Development Metrics
+
+- Solidity LOC: ~1,500
+- TypeScript LOC (frontend): ~2,100
+- TypeScript LOC (tests): ~1,200
+- Hardhat tests: 201
+- Frontend build: 7–9s on Windows 11 / Node 20.18.1
+- AI tooling: GitHub Copilot + Cursor/Claude for architecture + docs
+
+---
+
+## ✅ Readiness Summary
+
+DungeonFlip is feature-complete on Base Sepolia with verified contracts, refreshed ABIs, and a custodial game loop that enforces on-chain randomness + NFT custody. Remaining work is QA (multi-wallet testing, stress runs) and optional polish (indexer, UI enhancements) before considering a Base mainnet launch.
