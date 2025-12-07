@@ -441,8 +441,11 @@ export default function GamePage() {
                 <p className="text-gray-400 text-sm">Play a few cards to populate the history.</p>
               ) : (
                 <div className="space-y-3">
-                  {cardFeed.map((event) => (
-                    <div key={event.txHash} className="flex items-center justify-between bg-black/30 border border-purple-500/20 rounded-lg p-3 text-sm">
+                  {cardFeed.map((event, idx) => (
+                    <div
+                      key={`${event.txHash}-${idx}`}
+                      className="flex items-center justify-between bg-black/30 border border-purple-500/20 rounded-lg p-3 text-sm"
+                    >
                       <div>
                         <p className="font-semibold">
                           {CARD_EMOJIS[event.cardType] ?? '❓'} {CARD_LABELS[event.cardType] ?? 'Unknown'}

@@ -124,7 +124,7 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         bool isResume = run.status == RunStatus.Paused;
 
         // For fresh entries, check ownership and transfer NFT
-        // For resumed runs, only check that caller is the run owner (NFT already held in contract)
+        // For resumed runs, redeposit the NFT and reactivate the run for the same owner
         if (!isResume) {
             require(aventurerNFT.ownerOf(tokenId) == msg.sender, "not token owner");
             require(msg.value == ENTRY_FEE, "fee required");
@@ -154,12 +154,17 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         } else {
             // Resume: verify caller owns this paused run
             require(run.lastKnownOwner == msg.sender, "not run owner");
+            require(aventurerNFT.ownerOf(tokenId) == msg.sender, "NFT not in wallet");
             require(msg.value == 0, "resume is free");
             require(run.currentHP > 0, "no HP to resume");
             run.status = RunStatus.Active;
+            run.nftDeposited = true;
             
             // Re-track active token on resume
             activeTokenByWallet[msg.sender] = tokenId;
+
+            // Take custody of the NFT again for the resumed run
+            aventurerNFT.transferFrom(msg.sender, address(this), tokenId);
         }
 
         run.lastAction = block.timestamp;

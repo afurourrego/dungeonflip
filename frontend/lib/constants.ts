@@ -1,11 +1,11 @@
-// Contract addresses on Base Sepolia (Redeployed Dec 6, 2025 with activeTokenByWallet)
+// Contract addresses on Base Sepolia (Redeployed Dec 6, 2025 with resume fix)
 // Sync this file whenever scripts/deploy.ts runs successfully
 export const CONTRACTS = {
-  AVENTURER_NFT: '0x23327A831E559549d7584218078538c547a10E67' as `0x${string}`,
-  FEE_DISTRIBUTOR: '0xAa26dBcd21D32af565Fb336031171F4967fB3ca4' as `0x${string}`,
-  PROGRESS_TRACKER: '0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E' as `0x${string}`,
-  REWARDS_POOL: '0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb' as `0x${string}`,
-  DUNGEON_GAME: '0x9E4cD14a37959b6852951fcfbf495d838e9e36A8' as `0x${string}`,
+  AVENTURER_NFT: '0x869316eE5E2df6EC73d6bC63fdA59Cce9643336d' as `0x${string}`,
+  FEE_DISTRIBUTOR: '0x6F45110Ee06b35Aca2Eb7b8b62843709afEFDCb6' as `0x${string}`,
+  PROGRESS_TRACKER: '0x5B1807BEbD8a2FcD497fa9159437D84D1F35eA37' as `0x${string}`,
+  REWARDS_POOL: '0x4d6bdD23F6F903BFBE5f6e95373EDE11fe7B0689' as `0x${string}`,
+  DUNGEON_GAME: '0x7b564B6c67b1e87fB098176aca82d2e243C1c016' as `0x${string}`,
 } as const;
 
 // Game constants
