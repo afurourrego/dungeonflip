@@ -30,9 +30,15 @@ export default function NFTsPage() {
   const { writeContract, data: hash, isPending, error: txError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const [selectedToken, setSelectedToken] = useState<bigint | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const burnAddress = BURN_ADDRESSES.BASE_SEPOLIA;
   const isWrongNetwork = chain && chain.id !== CURRENT_NETWORK.id;
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isSuccess) {
@@ -111,7 +117,11 @@ export default function NFTsPage() {
               </div>
             </div>
 
-            {!isConnected ? (
+            {!mounted ? (
+              <div className="text-center py-12">
+                <p className="text-amber-100/70">Loading...</p>
+              </div>
+            ) : !isConnected ? (
               <div className="text-center py-12">
                 <p className="text-amber-100/80 mb-4">Connect your wallet to see your Aventurers.</p>
                 <ConnectButton />
