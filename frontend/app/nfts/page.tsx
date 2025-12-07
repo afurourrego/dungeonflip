@@ -12,7 +12,16 @@ import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
 const formatDate = (timestamp?: bigint) => {
   if (!timestamp) return '—';
   const date = new Date(Number(timestamp) * 1000);
-  return date.toLocaleString();
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }).format(date);
 };
 
 export default function NFTsPage() {
@@ -35,7 +44,7 @@ export default function NFTsPage() {
   const handleSendToBurn = async (tokenId: bigint) => {
     if (!address) return;
     if (isWrongNetwork) {
-      alert(`Por favor cambia a ${CURRENT_NETWORK.name} para quemar tus NFTs.`);
+      alert(`Switch to ${CURRENT_NETWORK.name} to burn your NFTs.`);
       return;
     }
 
@@ -49,7 +58,7 @@ export default function NFTsPage() {
         args: [address, burnAddress, tokenId],
       });
     } catch (err) {
-      console.error('Error enviando NFT a burn:', err);
+      console.error('Error sending NFT to burn:', err);
       setSelectedToken(null);
     }
   };
@@ -74,7 +83,7 @@ export default function NFTsPage() {
 
             <nav className="flex items-center gap-4 justify-end">
               <Link href="/game" className="text-amber-300/80 hover:text-dungeon-gold transition font-medium">
-                ⚔️ Juego
+                ⚔️ Game
               </Link>
               <Link href="/leaderboard" className="text-amber-300/80 hover:text-dungeon-gold transition font-medium">
                 🏆 Leaderboard
@@ -90,57 +99,54 @@ export default function NFTsPage() {
           <div className="royal-board p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
               <div>
-                <h2 className="text-3xl font-bold text-dungeon-gold mb-2">Tus Aventureros</h2>
+                <h2 className="text-3xl font-bold text-dungeon-gold mb-2">Your Aventurers</h2>
                 <p className="text-amber-100/80 text-sm">
-                  Visualiza todos los NFTs de tu wallet conectada y gestiona transferencias o quemados rápidos en Base
-                  Sepolia.
+                  View every NFT in your connected wallet and handle quick transfers or burns on Base Sepolia.
                 </p>
               </div>
               <div className="bg-gray-900/60 border border-amber-700/40 rounded-lg p-4 text-center">
                 <p className="text-xs text-amber-300/70 uppercase tracking-widest mb-1">Burn Address</p>
                 <p className="font-mono text-sm text-amber-100/90 break-all">{burnAddress}</p>
-                <p className="text-[10px] text-amber-200/60 mt-1">Todos los envíos son irreversibles</p>
+                <p className="text-[10px] text-amber-200/60 mt-1">All transfers are irreversible</p>
               </div>
             </div>
 
             {!isConnected ? (
               <div className="text-center py-12">
-                <p className="text-amber-100/80 mb-4">Conecta tu wallet para ver tus Aventureros.</p>
+                <p className="text-amber-100/80 mb-4">Connect your wallet to see your Aventurers.</p>
                 <ConnectButton />
               </div>
             ) : isWrongNetwork ? (
               <div className="bg-amber-900/40 border border-amber-700/60 rounded-lg p-6 text-center">
-                <p className="text-amber-100/80 font-semibold mb-2">Red incorrecta</p>
-                <p className="text-amber-100/70 text-sm">
-                  Cambia a {CURRENT_NETWORK.name} para gestionar tus NFTs.
-                </p>
+                <p className="text-amber-100/80 font-semibold mb-2">Wrong network</p>
+                <p className="text-amber-100/70 text-sm">Switch to {CURRENT_NETWORK.name} to manage your NFTs.</p>
               </div>
             ) : (
               <div className="space-y-6">
                 {isLoading && (
-                  <div className="text-center text-amber-100/70">Cargando NFTs...</div>
+                  <div className="text-center text-amber-100/70">Loading NFTs...</div>
                 )}
 
                 {error && (
                   <div className="bg-red-900/40 border border-red-700/60 rounded-lg p-4 text-center text-red-200">
-                    Error al cargar tus NFTs: {error.message}
+                    Failed to load your NFTs: {error.message}
                   </div>
                 )}
 
                 {txError && (
                   <div className="bg-red-900/40 border border-red-700/60 rounded-lg p-4 text-center text-red-200">
-                    Error en la transacción: {txError.message}
+                    Transaction error: {txError.message}
                   </div>
                 )}
 
                 {!isLoading && nfts.length === 0 && (
                   <div className="text-center py-12">
-                    <p className="text-amber-100/80 mb-4">Aún no tienes Aventureros.</p>
+                    <p className="text-amber-100/80 mb-4">You do not own any Aventurers yet.</p>
                     <Link
                       href="/mint"
                       className="inline-block bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold py-3 px-8 rounded-lg transition transform hover:scale-105 shadow-lg"
                     >
-                      🎨 Mint gratis
+                      🎨 Free mint
                     </Link>
                   </div>
                 )}
@@ -184,8 +190,8 @@ export default function NFTsPage() {
                         className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition"
                       >
                         {selectedToken === nft.tokenId && (isPending || isConfirming)
-                          ? '🔥 Enviando...'
-                          : '🔥 Enviar a burn'}
+                          ? '🔥 Sending...'
+                          : '🔥 Send to burn'}
                       </button>
                     </div>
                   ))}

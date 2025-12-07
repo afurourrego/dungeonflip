@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
-    // Ignorar módulos opcionales que no están instalados
+    // Ignore optional modules that are not installed
     config.externals.push(
       'pino-pretty',
       'lokijs',
@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
       };
     }
     
-    // Ignorar archivos de test en node_modules
+    // Ignore test files that live inside node_modules
     config.module = config.module || {};
     config.module.rules = config.module.rules || [];
     config.module.rules.push({
@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
       use: 'ignore-loader',
     });
     
-    // Ignorar imports opcionales que fallan
+    // Ignore optional imports that may fail to resolve
     config.plugins = config.plugins || [];
     config.plugins.push(
       new (require('webpack').IgnorePlugin)({

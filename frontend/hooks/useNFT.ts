@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { CONTRACTS } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
+import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 
 export interface AventurerStats {
   atk: bigint;
@@ -13,6 +14,47 @@ export interface AventurerStats {
 export interface WalletNFT {
   tokenId: bigint;
   stats: AventurerStats;
+}
+
+export function useDungeonApproval(owner?: `0x${string}`) {
+  const approvalQuery = useReadContract({
+    address: CONTRACTS.AVENTURER_NFT,
+    abi: AventurerNFTABI.abi,
+    functionName: 'isApprovedForAll',
+    args: owner ? [owner, CONTRACTS.DUNGEON_GAME] : undefined,
+    query: {
+      enabled: !!owner,
+      staleTime: 60000,
+    },
+  });
+
+  const { writeContractAsync, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
+
+  const { refetch: refetchApproval } = approvalQuery;
+
+  useEffect(() => {
+    if (!hash || isConfirming) return;
+    refetchApproval();
+  }, [hash, isConfirming, refetchApproval]);
+
+  const requestApproval = async () => {
+    if (!owner) throw new Error('Wallet not connected');
+    return writeContractAsync({
+      address: CONTRACTS.AVENTURER_NFT,
+      abi: AventurerNFTABI.abi,
+      functionName: 'setApprovalForAll',
+      args: [CONTRACTS.DUNGEON_GAME, true],
+    });
+  };
+
+  return {
+    isApproved: Boolean(approvalQuery.data),
+    refetchApproval,
+    requestApproval,
+    isApproving: isPending || isConfirming,
+    approvalError: error,
+  };
 }
 
 export function useNFT() {
@@ -52,76 +94,109 @@ export function useNFTBalance(address?: `0x${string}`) {
   });
 }
 
+/**
+ * Hook to find the active tokenId for a wallet.
+ * Uses the new activeTokenByWallet mapping in the contract for instant lookup.
+ * Falls back to scanning wallet ownership if no active token.
+ */
 export function useNFTOwnerTokens(address?: `0x${string}`) {
-  const { data: balance } = useNFTBalance(address);
+  const publicClient = usePublicClient();
   const { data: totalSupply } = useTotalSupply();
-
-  // Try to get cached tokenId from localStorage
-  const getCachedTokenId = (): bigint | undefined => {
-    if (typeof window === 'undefined' || !address) return undefined;
-    const cached = localStorage.getItem(`nft_token_${address}`);
-    return cached ? BigInt(cached) : undefined;
-  };
-
-  const cachedTokenId = getCachedTokenId();
-
-  // Check token IDs dynamically based on totalSupply (max 10 for performance)
-  const maxTokensToCheck = totalSupply ? Math.min(Number(totalSupply), 10) : 3;
-
-  // Only check if we don't have a cached value
-  const shouldCheck = !!address && !!balance && Number(balance) > 0 && !cachedTokenId;
-
-  const token1 = useReadContract({
-    address: CONTRACTS.AVENTURER_NFT,
-    abi: AventurerNFTABI.abi,
-    functionName: 'ownerOf',
-    args: [BigInt(1)],
+  
+  // PRIORITY 1: Read activeTokenByWallet from contract (instant, no scanning)
+  const { data: activeToken, refetch: refetchActiveToken, isFetching: isFetchingActive, error: activeError } = useReadContract({
+    address: CONTRACTS.DUNGEON_GAME,
+    abi: DungeonGameABI.abi,
+    functionName: 'activeTokenByWallet',
+    args: address ? [address] : undefined,
     query: {
-      enabled: shouldCheck && maxTokensToCheck >= 1,
-      staleTime: 60000, // Cache for 1 minute
+      enabled: !!address,
+      staleTime: 2000, // Refresh very frequently
+      refetchInterval: 3000, // Auto-refetch every 3 seconds
     },
   });
 
-  const token2 = useReadContract({
-    address: CONTRACTS.AVENTURER_NFT,
-    abi: AventurerNFTABI.abi,
-    functionName: 'ownerOf',
-    args: [BigInt(2)],
-    query: {
-      enabled: shouldCheck && maxTokensToCheck >= 2,
-      staleTime: 60000,
-    },
-  });
+  const [walletTokenId, setWalletTokenId] = useState<bigint | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-  const token3 = useReadContract({
-    address: CONTRACTS.AVENTURER_NFT,
-    abi: AventurerNFTABI.abi,
-    functionName: 'ownerOf',
-    args: [BigInt(3)],
-    query: {
-      enabled: shouldCheck && maxTokensToCheck >= 3,
-      staleTime: 60000,
-    },
-  });
+  // If activeToken > 0, that's the deposited token - use it immediately
+  const activeTokenBigInt = activeToken as bigint | undefined;
+  const hasActiveToken = activeTokenBigInt !== undefined && activeTokenBigInt > BigInt(0);
 
-  // Determine which token belongs to this address
-  let tokenId: bigint | undefined = cachedTokenId;
-
-  if (!tokenId) {
-    if (token1.data === address) tokenId = BigInt(1);
-    else if (token2.data === address) tokenId = BigInt(2);
-    else if (token3.data === address) tokenId = BigInt(3);
-
-    // Cache the result
-    if (tokenId && typeof window !== 'undefined' && address) {
-      localStorage.setItem(`nft_token_${address}`, tokenId.toString());
+  // Scan wallet for owned tokens (only if no active token in game)
+  useEffect(() => {
+    if (!address || !publicClient || hasActiveToken) {
+      if (hasActiveToken) {
+        setWalletTokenId(undefined); // Clear wallet token since we have an active one
+      }
+      return;
     }
-  }
+
+    let cancelled = false;
+
+    const scanWallet = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const supply = totalSupply !== undefined ? Number(totalSupply) : 0;
+        const maxTokens = Math.max(Math.min(supply, 100), 10);
+        const lowercased = address.toLowerCase();
+
+        for (let id = 1; id <= maxTokens; id++) {
+          if (cancelled) return;
+          const owner = await publicClient
+            .readContract({
+              address: CONTRACTS.AVENTURER_NFT,
+              abi: AventurerNFTABI.abi,
+              functionName: 'ownerOf',
+              args: [BigInt(id)],
+            })
+            .catch(() => null);
+
+          if (typeof owner === 'string' && owner.toLowerCase() === lowercased) {
+            if (!cancelled) {
+              setWalletTokenId(BigInt(id));
+            }
+            return;
+          }
+        }
+
+        if (!cancelled) {
+          setWalletTokenId(undefined);
+        }
+      } catch (err) {
+        console.error('Error scanning wallet NFTs', err);
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error('Scan failed'));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    scanWallet();
+    return () => { cancelled = true; };
+  }, [address, publicClient, totalSupply, hasActiveToken]);
+
+  // Final tokenId: prefer active token, fallback to wallet token
+  const tokenId = hasActiveToken ? activeTokenBigInt : walletTokenId;
+
+  const refetch = useCallback(async () => {
+    const result = await refetchActiveToken();
+    // Force re-scan wallet if no active token found
+    if (!result.data || (result.data as bigint) === BigInt(0)) {
+      setWalletTokenId(undefined);
+    }
+  }, [refetchActiveToken]);
 
   return {
     data: tokenId,
-    isLoading: !cachedTokenId && (token1.isLoading || token2.isLoading || token3.isLoading),
-    error: token1.error || token2.error || token3.error,
+    isLoading: isLoading || isFetchingActive,
+    error,
+    refetch,
   };
 }
 

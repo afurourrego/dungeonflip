@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./AventurerNFT.sol";
 import "./FeeDistributor.sol";
 import "./ProgressTracker.sol";
@@ -10,526 +12,401 @@ import "./RewardsPool.sol";
 
 /**
  * @title DungeonGame
- * @dev Main game contract that orchestrates dungeon runs and integrates all other contracts
- * @notice Built with AI assistance (GitHub Copilot) for Seedify Vibe Coins Hackathon
+ * @notice Fully on-chain dungeon crawler that keeps gameplay tied to the NFT itself.
+ *         Players voluntarily deposit their Aventurer NFT while exploring and can
+ *         withdraw it at any time. Game progress is stored per tokenId, so whoever
+ *         owns the NFT can resume the run from the latest checkpoint.
  */
-contract DungeonGame is Ownable, Pausable {
-    
-    // ============================================
-    // STATE VARIABLES
-    // ============================================
-    
-    /// @notice Entry fee to play (0.00001 ETH)
+contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
+    using Math for uint256;
+
+    /// @notice Entry fee (0.00001 ETH)
     uint256 public constant ENTRY_FEE = 0.00001 ether;
-    
-    /// @notice Minimum time between games (30 seconds cooldown)
+
+    /// @notice Cooldown between fresh dungeon entries (30 seconds)
     uint256 public constant GAME_COOLDOWN = 30 seconds;
 
-    /// @notice Base score per level completed
-    uint256 public constant BASE_SCORE_PER_LEVEL = 10;
-    
-    /// @notice Contract references
-    AventurerNFT public aventurerNFT;
-    FeeDistributor public feeDistributor;
-    ProgressTracker public progressTracker;
-    RewardsPool public rewardsPool;
-    
-    /// @notice Game session data
-    struct GameSession {
-        uint256 tokenId;
-        uint256 levelsCompleted;
-        uint256 scoreEarned;
-        uint256 timestamp;
-        bool active;
-        // NEW: Checkpoint data for game resumption
-        uint8 currentRoom;           // Current room number (1-10)
-        uint8 currentHP;             // Current HP
-        uint8 gemsCollected;         // Gems collected so far
-        uint256 lastCheckpointTime;  // Timestamp of last checkpoint
-        uint256 seed;                // Random seed for this game session
+    /// @notice Max rooms per run (soft cap for score calculation)
+    uint8 public constant MAX_ROOMS = 50;
+
+    /// @notice Card types supported by the contract
+    enum CardType {
+        Monster,
+        Trap,
+        PotionSmall,
+        PotionFull,
+        Treasure
     }
-    
-    /// @notice Mapping from player to their current game session
-    mapping(address => GameSession) public playerSessions;
-    
-    /// @notice Mapping from player to last game timestamp (for cooldown)
-    mapping(address => uint256) public lastGameTime;
-    
-    /// @notice Total games played
-    uint256 public totalGamesPlayed;
-    
-    /// @notice Total entry fees collected
-    uint256 public totalFeesCollected;
-    
-    // ============================================
-    // EVENTS
-    // ============================================
-    
-    /// @notice Emitted when a game starts
-    event GameStarted(
+
+    /// @notice Lifecycle state for a given token run
+    enum RunStatus {
+        Idle,
+        Active,
+        Paused,
+        Dead,
+        Completed
+    }
+
+    /// @notice Core run data tied to a specific NFT tokenId
+    struct RunState {
+        address lastKnownOwner;
+        RunStatus status;
+        bool nftDeposited;
+        uint8 currentRoom;
+        uint8 currentHP;
+        uint8 maxHP;
+        uint8 atk;
+        uint8 def;
+        uint16 gems;
+        uint256 lastSeed;
+        uint256 lastAction;
+    }
+
+    AventurerNFT public immutable aventurerNFT;
+    FeeDistributor public immutable feeDistributor;
+    ProgressTracker public immutable progressTracker;
+    RewardsPool public immutable rewardsPool;
+
+    /// @notice tokenId => run data
+    mapping(uint256 => RunState) public tokenRuns;
+
+    /// @notice address => last time began a fresh run
+    mapping(address => uint256) public lastEntryTime;
+
+    /// @notice address => tokenId currently being played (0 if none)
+    /// @dev This allows frontend to quickly find active token without scanning
+    mapping(address => uint256) public activeTokenByWallet;
+
+    /// @notice Aggregate stats
+    uint256 public totalRunsStarted;
+    uint256 public totalRunsCompleted;
+
+    /// @notice Events for frontend consumption
+    event RunStarted(address indexed player, uint256 indexed tokenId, uint8 room, bool resumed);
+    event RunPaused(address indexed player, uint256 indexed tokenId, uint8 room, uint8 hp, uint16 gems);
+    event RunExited(address indexed player, uint256 indexed tokenId, uint8 roomsCleared, uint16 gems, uint256 score);
+    event RunDied(address indexed player, uint256 indexed tokenId, uint8 room, uint16 gems);
+    event CardResolved(
         address indexed player,
         uint256 indexed tokenId,
-        uint256 timestamp
-    );
-    
-    /// @notice Emitted when a game ends
-    event GameEnded(
-        address indexed player,
-        uint256 indexed tokenId,
-        uint256 levelsCompleted,
-        uint256 scoreEarned,
-        uint256 timestamp
-    );
-    
-    /// @notice Emitted when contracts are updated
-    event ContractsUpdated(
-        address aventurerNFT,
-        address feeDistributor,
-        address progressTracker,
-        address rewardsPool
+        CardType cardType,
+        uint8 room,
+        uint8 hp,
+        uint16 gems
     );
 
-    // NEW: Adventure Log Events
-
-    /// @notice Emitted when game state checkpoint is saved
-    event GameCheckpoint(
-        address indexed player,
-        uint256 indexed tokenId,
-        uint8 currentRoom,
-        uint8 currentHP,
-        uint8 gemsCollected,
-        uint256 timestamp
-    );
-
-    /// @notice Emitted when player dies
-    event PlayerDied(
-        address indexed player,
-        uint256 indexed tokenId,
-        uint8 roomNumber,
-        uint8 gemsCollected,
-        uint256 timestamp
-    );
-
-    /// @notice Emitted when a room is completed
-    event RoomCompleted(
-        address indexed player,
-        uint256 indexed tokenId,
-        uint8 roomNumber,
-        uint8 cardType,
-        uint8 hpRemaining,
-        uint8 gemsCollected,
-        uint256 timestamp
-    );
-    
-    // ============================================
-    // CONSTRUCTOR
-    // ============================================
-    
-    /**
-     * @dev Initialize the game contract
-     */
     constructor(
         address _aventurerNFT,
         address payable _feeDistributor,
         address _progressTracker,
         address payable _rewardsPool
     ) Ownable(msg.sender) {
-        require(_aventurerNFT != address(0), "Invalid NFT address");
-        require(_feeDistributor != address(0), "Invalid distributor address");
-        require(_progressTracker != address(0), "Invalid tracker address");
-        require(_rewardsPool != address(0), "Invalid pool address");
-        
+        require(_aventurerNFT != address(0), "invalid NFT");
+        require(_feeDistributor != address(0), "invalid distributor");
+        require(_progressTracker != address(0), "invalid tracker");
+        require(_rewardsPool != address(0), "invalid pool");
+
         aventurerNFT = AventurerNFT(_aventurerNFT);
         feeDistributor = FeeDistributor(_feeDistributor);
         progressTracker = ProgressTracker(_progressTracker);
         rewardsPool = RewardsPool(_rewardsPool);
     }
-    
-    // ============================================
-    // EXTERNAL FUNCTIONS
-    // ============================================
-    
-    /**
-     * @notice Start a new game session
-     * @param tokenId The adventurer NFT token ID to use
-     */
-    function startGame(uint256 tokenId) 
-        external 
-        payable 
-        whenNotPaused 
-    {
-        require(msg.value == ENTRY_FEE, "Incorrect entry fee");
-        require(aventurerNFT.ownerOf(tokenId) == msg.sender, "Not token owner");
-        require(!playerSessions[msg.sender].active, "Game already active");
-        require(
-            block.timestamp >= lastGameTime[msg.sender] + GAME_COOLDOWN,
-            "Cooldown not finished"
-        );
-        
-        // Distribute entry fee
-        feeDistributor.distributeEntryFee{value: ENTRY_FEE}();
-        totalFeesCollected += ENTRY_FEE;
 
-        // Generate random seed for this game
-        uint256 gameSeed = uint256(
-            keccak256(
-                abi.encodePacked(
-                    block.timestamp,
-                    block.prevrandao,
-                    msg.sender,
-                    tokenId,
-                    totalGamesPlayed
-                )
-            )
-        );
-
-        // Get initial HP from NFT stats
-        AventurerNFT.Stats memory stats = aventurerNFT.getAventurerStats(tokenId);
-
-        // Create game session
-        playerSessions[msg.sender] = GameSession({
-            tokenId: tokenId,
-            levelsCompleted: 0,
-            scoreEarned: 0,
-            timestamp: block.timestamp,
-            active: true,
-            currentRoom: 1,
-            currentHP: uint8(stats.hp),
-            gemsCollected: 0,
-            lastCheckpointTime: block.timestamp,
-            seed: gameSeed
-        });
-
-        lastGameTime[msg.sender] = block.timestamp;
-        totalGamesPlayed++;
-
-        emit GameStarted(msg.sender, tokenId, block.timestamp);
-    }
-    
-    /**
-     * @notice Update game checkpoint
-     * @param currentRoom Current room number
-     * @param currentHP Player's current HP
-     * @param gemsCollected Gems collected so far
-     */
-    function updateCheckpoint(
-        uint8 currentRoom,
-        uint8 currentHP,
-        uint8 gemsCollected
-    ) external whenNotPaused {
-        GameSession storage session = playerSessions[msg.sender];
-        require(session.active, "No active game");
-        require(currentRoom >= session.currentRoom, "Cannot go backwards");
-        require(currentHP > 0, "Player is dead");
-
-        // Update session state
-        session.currentRoom = currentRoom;
-        session.currentHP = currentHP;
-        session.gemsCollected = gemsCollected;
-        session.lastCheckpointTime = block.timestamp;
-
-        emit GameCheckpoint(
-            msg.sender,
-            session.tokenId,
-            currentRoom,
-            currentHP,
-            gemsCollected,
-            block.timestamp
-        );
-    }
+    // -------------------------------------------------------------------------
+    // External user actions
+    // -------------------------------------------------------------------------
 
     /**
-     * @notice Record player death
-     * @param roomNumber Room where player died
-     * @param finalGemsCollected Final gems collected
+     * @notice Deposit an NFT and either start a new adventure or resume a paused run.
      */
-    function recordDeath(
-        uint8 roomNumber,
-        uint8 finalGemsCollected
-    ) external whenNotPaused {
-        GameSession storage session = playerSessions[msg.sender];
-        require(session.active, "No active game");
+    function enterDungeon(uint256 tokenId) external payable nonReentrant whenNotPaused {
+        RunState storage run = tokenRuns[tokenId];
+        bool isResume = run.status == RunStatus.Paused;
 
-        // Mark session as complete (death)
-        session.active = false;
-        session.levelsCompleted = roomNumber > 0 ? roomNumber - 1 : 0;
-        session.currentHP = 0;
-        session.gemsCollected = finalGemsCollected;
-        session.scoreEarned = 0; // No score for deaths
+        // For fresh entries, check ownership and transfer NFT
+        // For resumed runs, only check that caller is the run owner (NFT already held in contract)
+        if (!isResume) {
+            require(aventurerNFT.ownerOf(tokenId) == msg.sender, "not token owner");
+            require(msg.value == ENTRY_FEE, "fee required");
+            
+            // Enforce cooldown on fresh entries
+            require(block.timestamp >= lastEntryTime[msg.sender] + GAME_COOLDOWN, "cooldown active");
+            lastEntryTime[msg.sender] = block.timestamp;
 
-        emit PlayerDied(
-            msg.sender,
-            session.tokenId,
-            roomNumber,
-            finalGemsCollected,
-            block.timestamp
-        );
+            AventurerNFT.Stats memory stats = aventurerNFT.getAventurerStats(tokenId);
+            run.atk = stats.atk;
+            run.def = stats.def;
+            run.maxHP = stats.hp;
+            run.currentHP = stats.hp;
+            run.currentRoom = 1;
+            run.gems = 0;
+            run.status = RunStatus.Active;
+            run.lastKnownOwner = msg.sender;
+            run.nftDeposited = true;
+            totalRunsStarted += 1;
 
-        emit GameEnded(
-            msg.sender,
-            session.tokenId,
-            session.levelsCompleted,
-            0, // zero score for death
-            block.timestamp
-        );
-    }
+            // Track active token for this wallet (allows quick frontend lookup)
+            activeTokenByWallet[msg.sender] = tokenId;
 
-
-    /**
-     * @notice Log room completion (for adventure log)
-     * @param roomNumber Room that was completed
-     * @param cardType Type of card encountered (0=Monster, 1=Treasure, 2=Trap, 3=Potion)
-     * @param hpRemaining Player HP after room
-     * @param gemsCollected Total gems collected
-     */
-    function logRoomCompletion(
-        uint8 roomNumber,
-        uint8 cardType,
-        uint8 hpRemaining,
-        uint8 gemsCollected
-    ) external whenNotPaused {
-        GameSession storage session = playerSessions[msg.sender];
-        require(session.active, "No active game");
-
-        emit RoomCompleted(
-            msg.sender,
-            session.tokenId,
-            roomNumber,
-            cardType,
-            hpRemaining,
-            gemsCollected,
-            block.timestamp
-        );
-    }
-
-    /**
-     * @notice Complete the game and record results
-     * @dev In production, this would validate game proof. For demo, we simulate results.
-     */
-    function completeGame() external whenNotPaused {
-        GameSession storage session = playerSessions[msg.sender];
-        require(session.active, "No active game");
-        
-        // Get adventurer stats for score calculation
-        AventurerNFT.Stats memory stats = aventurerNFT.getAventurerStats(session.tokenId);
-        
-        // Simulate dungeon run based on stats (pseudo-random)
-        uint256 levelsCompleted = _simulateDungeonRun(stats.atk, stats.def, stats.hp, session.tokenId);
-        uint256 scoreEarned = _calculateScore(levelsCompleted, stats.atk, stats.def, stats.hp);
-        
-        // Update session
-        session.levelsCompleted = levelsCompleted;
-        session.scoreEarned = scoreEarned;
-        session.active = false;
-        
-        // Update player progress
-        progressTracker.updateScore(msg.sender, scoreEarned);
-        
-        emit GameEnded(
-            msg.sender,
-            session.tokenId,
-            levelsCompleted,
-            scoreEarned,
-            block.timestamp
-        );
-    }
-    
-    /**
-     * @notice Advance to next week (owner only)
-     * @dev Advances week in both ProgressTracker and RewardsPool
-     */
-    function advanceWeek() external onlyOwner {
-        progressTracker.advanceWeek();
-        rewardsPool.advanceWeek();
-    }
-    
-    /**
-     * @notice Distribute weekly rewards to top 10 players
-     * @dev This is a convenience function that calls RewardsPool.distributeRewards
-     * @dev which internally gets top players from ProgressTracker
-     * @param topPlayers Array of top 10 player addresses (from off-chain or manual call)
-     */
-    function distributeWeeklyRewards(address[] calldata topPlayers) external onlyOwner {
-        // Distribute rewards to provided top players
-        rewardsPool.distributeRewards(topPlayers);
-    }
-    
-    /**
-     * @notice Update contract addresses (owner only)
-     */
-    function updateContracts(
-        address _aventurerNFT,
-        address payable _feeDistributor,
-        address _progressTracker,
-        address payable _rewardsPool
-    ) external onlyOwner {
-        require(_aventurerNFT != address(0), "Invalid NFT address");
-        require(_feeDistributor != address(0), "Invalid distributor address");
-        require(_progressTracker != address(0), "Invalid tracker address");
-        require(_rewardsPool != address(0), "Invalid pool address");
-        
-        aventurerNFT = AventurerNFT(_aventurerNFT);
-        feeDistributor = FeeDistributor(_feeDistributor);
-        progressTracker = ProgressTracker(_progressTracker);
-        rewardsPool = RewardsPool(_rewardsPool);
-        
-        emit ContractsUpdated(
-            _aventurerNFT,
-            _feeDistributor,
-            _progressTracker,
-            _rewardsPool
-        );
-    }
-    
-    // ============================================
-    // VIEW FUNCTIONS
-    // ============================================
-    
-    /**
-     * @notice Get player's current game session
-     */
-    function getPlayerSession(address player)
-        external
-        view
-        returns (
-            uint256 tokenId,
-            uint256 levelsCompleted,
-            uint256 scoreEarned,
-            uint256 timestamp,
-            bool active,
-            uint8 currentRoom,
-            uint8 currentHP,
-            uint8 gemsCollected,
-            uint256 lastCheckpointTime,
-            uint256 seed
-        )
-    {
-        GameSession memory session = playerSessions[player];
-        return (
-            session.tokenId,
-            session.levelsCompleted,
-            session.scoreEarned,
-            session.timestamp,
-            session.active,
-            session.currentRoom,
-            session.currentHP,
-            session.gemsCollected,
-            session.lastCheckpointTime,
-            session.seed
-        );
-    }
-    
-    /**
-     * @notice Check if player can start a new game
-     */
-    function canStartGame(address player) external view returns (bool) {
-        return !playerSessions[player].active &&
-               block.timestamp >= lastGameTime[player] + GAME_COOLDOWN;
-    }
-    
-    /**
-     * @notice Get time remaining until player can start new game
-     */
-    function getCooldownRemaining(address player) external view returns (uint256) {
-        if (block.timestamp >= lastGameTime[player] + GAME_COOLDOWN) {
-            return 0;
-        }
-        return (lastGameTime[player] + GAME_COOLDOWN) - block.timestamp;
-    }
-    
-    // ============================================
-    // INTERNAL FUNCTIONS
-    // ============================================
-    
-    /**
-     * @dev Simulate dungeon run based on adventurer stats
-     * @return Number of levels completed (0-10)
-     */
-    function _simulateDungeonRun(
-        uint256 atk,
-        uint256 def,
-        uint256 hp,
-        uint256 tokenId
-    ) internal view returns (uint256) {
-        // Calculate total power (weighted sum of stats)
-        uint256 totalPower = (atk * 3) + (def * 2) + hp;
-        
-        // Generate pseudo-random number based on stats and block data
-        uint256 randomFactor = uint256(
-            keccak256(
-                abi.encodePacked(
-                    block.timestamp,
-                    block.prevrandao,
-                    tokenId,
-                    msg.sender,
-                    totalPower
-                )
-            )
-        ) % 100;
-        
-        // Calculate success threshold (higher power = higher success chance)
-        // Min power: (1*3 + 1*2 + 4) = 9, Max power: (2*3 + 2*2 + 6) = 16
-        // Normalize to 0-100 scale: ((power - 9) * 100) / 7
-        uint256 successThreshold = ((totalPower - 9) * 100) / 7;
-        
-        // Calculate levels completed based on power and luck
-        uint256 levelsCompleted;
-        if (randomFactor < successThreshold) {
-            // Good run: 7-10 levels
-            levelsCompleted = 7 + (randomFactor % 4);
-        } else if (randomFactor < successThreshold + 30) {
-            // Average run: 4-6 levels
-            levelsCompleted = 4 + (randomFactor % 3);
+            // Take custody of the NFT only on fresh entry
+            aventurerNFT.transferFrom(msg.sender, address(this), tokenId);
+            feeDistributor.distributeEntryFee{value: ENTRY_FEE}();
         } else {
-            // Poor run: 1-3 levels
-            levelsCompleted = 1 + (randomFactor % 3);
+            // Resume: verify caller owns this paused run
+            require(run.lastKnownOwner == msg.sender, "not run owner");
+            require(msg.value == 0, "resume is free");
+            require(run.currentHP > 0, "no HP to resume");
+            run.status = RunStatus.Active;
+            
+            // Re-track active token on resume
+            activeTokenByWallet[msg.sender] = tokenId;
         }
-        
-        return levelsCompleted;
+
+        run.lastAction = block.timestamp;
+        run.lastSeed = _nextSeed(run.lastSeed, msg.sender, tokenId);
+
+        emit RunStarted(msg.sender, tokenId, run.currentRoom, isResume);
     }
-    
+
     /**
-     * @dev Calculate score based on performance
+     * @notice Resolve the next room by selecting one of four face-down cards.
      */
-    function _calculateScore(
-        uint256 levelsCompleted,
-        uint256 atk,
-        uint256 def,
-        uint256 hp
-    ) internal pure returns (uint256) {
-        // Base score: 10 points per level
-        uint256 baseScore = levelsCompleted * BASE_SCORE_PER_LEVEL;
-        
-        // Bonus for high stats (max +20%)
-        uint256 statBonus = (atk + def + hp - 6) * 2; // 0-20% bonus
-        uint256 bonusScore = (baseScore * statBonus) / 100;
-        
-        // Bonus for completing many levels (exponential)
-        uint256 levelBonus = 0;
-        if (levelsCompleted >= 10) {
-            levelBonus = 50; // Perfect run bonus
-        } else if (levelsCompleted >= 7) {
-            levelBonus = 20; // Good run bonus
+    function chooseCard(uint256 tokenId, uint8 cardIndex) external nonReentrant whenNotPaused {
+        RunState storage run = tokenRuns[tokenId];
+        require(run.nftDeposited && run.status == RunStatus.Active, "run not active");
+        require(run.lastKnownOwner == msg.sender, "not run owner");
+        require(cardIndex < 4, "invalid card");
+        require(run.currentHP > 0, "no HP");
+
+        uint256 random = _nextSeed(run.lastSeed, msg.sender, tokenId ^ uint256(cardIndex));
+        run.lastSeed = random;
+
+        CardType card = _drawCard(random % 100);
+
+        if (card == CardType.Monster) {
+            _resolveMonster(run, random);
+        } else if (card == CardType.Trap) {
+            _resolveTrap(run);
+        } else if (card == CardType.PotionSmall) {
+            _heal(run, 1);
+        } else if (card == CardType.PotionFull) {
+            _heal(run, type(uint8).max);
+        } else {
+            _grantTreasure(run, random);
         }
-        
-        return baseScore + bonusScore + levelBonus;
+
+        emit CardResolved(msg.sender, tokenId, card, run.currentRoom, run.currentHP, run.gems);
+
+        if (run.currentHP == 0) {
+            _handleDeath(run, tokenId);
+            return;
+        }
+
+        run.currentRoom = run.currentRoom + 1;
+        if (run.currentRoom > MAX_ROOMS) {
+            // Auto-exit if player cleared the cap
+            run.currentRoom = MAX_ROOMS;
+            _completeRun(run, tokenId);
+        }
     }
-    
-    // ============================================
-    // OWNER FUNCTIONS
-    // ============================================
-    
+
     /**
-     * @notice Pause the contract
+     * @notice Exit the dungeon voluntarily, marking the run victorious.
      */
-    function pause() external onlyOwner {
+    function exitDungeon(uint256 tokenId) external nonReentrant {
+        RunState storage run = tokenRuns[tokenId];
+        require(run.nftDeposited && run.status == RunStatus.Active, "run not active");
+        require(run.lastKnownOwner == msg.sender, "not run owner");
+        _completeRun(run, tokenId);
+    }
+
+    /**
+     * @notice Pause a run and withdraw the NFT while keeping progress stored on-chain.
+     */
+    function pauseRun(uint256 tokenId) external nonReentrant {
+        RunState storage run = tokenRuns[tokenId];
+        require(run.nftDeposited && run.status == RunStatus.Active, "run not active");
+        require(run.lastKnownOwner == msg.sender, "not run owner");
+
+        run.status = RunStatus.Paused;
+        run.nftDeposited = false;
+        run.lastAction = block.timestamp;
+
+        // Clear active token tracking (NFT returning to wallet)
+        activeTokenByWallet[msg.sender] = 0;
+
+        aventurerNFT.safeTransferFrom(address(this), msg.sender, tokenId);
+        emit RunPaused(msg.sender, tokenId, run.currentRoom, run.currentHP, run.gems);
+    }
+
+    /**
+     * @notice After death, owner can reclaim the NFT (progress resets to Idle).
+     */
+    function claimAfterDeath(uint256 tokenId) external nonReentrant {
+        RunState storage run = tokenRuns[tokenId];
+        require(run.status == RunStatus.Dead, "not dead");
+        require(run.lastKnownOwner == msg.sender, "not owner");
+        require(run.nftDeposited, "already claimed");
+
+        run.status = RunStatus.Idle;
+        run.nftDeposited = false;
+        run.currentRoom = 1;
+        run.currentHP = run.maxHP;
+        run.gems = 0;
+
+        // Clear active token tracking
+        activeTokenByWallet[msg.sender] = 0;
+
+        aventurerNFT.safeTransferFrom(address(this), msg.sender, tokenId);
+    }
+
+    /**
+     * @notice Emergency claim if contract is paused/completed run.
+     */
+    function forceWithdraw(uint256 tokenId) external nonReentrant {
+        RunState storage run = tokenRuns[tokenId];
+        require(run.nftDeposited, "not deposited");
+        require(run.lastKnownOwner == msg.sender, "not owner");
+        require(run.status != RunStatus.Active, "run active");
+
+        run.nftDeposited = false;
+        
+        // Clear active token tracking
+        activeTokenByWallet[msg.sender] = 0;
+
+        aventurerNFT.safeTransferFrom(address(this), msg.sender, tokenId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal gameplay helpers
+    // -------------------------------------------------------------------------
+
+    function _completeRun(RunState storage run, uint256 tokenId) internal {
+        run.status = RunStatus.Completed;
+        run.nftDeposited = false;
+        totalRunsCompleted += 1;
+
+        // Clear active token tracking before transfer
+        activeTokenByWallet[run.lastKnownOwner] = 0;
+
+        aventurerNFT.safeTransferFrom(address(this), run.lastKnownOwner, tokenId);
+
+        uint8 roomsCleared = run.currentRoom > 0 ? run.currentRoom - 1 : 0;
+        uint256 score = _calculateScore(roomsCleared, run.gems, run.maxHP);
+        progressTracker.updateScore(run.lastKnownOwner, score);
+
+        emit RunExited(run.lastKnownOwner, tokenId, roomsCleared, run.gems, score);
+
+        // Reset lightweight portions so a new run starts clean
+        run.currentRoom = 1;
+        run.currentHP = run.maxHP;
+        run.gems = 0;
+        run.status = RunStatus.Idle;
+    }
+
+    function _handleDeath(RunState storage run, uint256 tokenId) internal {
+        run.status = RunStatus.Dead;
+        emit RunDied(run.lastKnownOwner, tokenId, run.currentRoom, run.gems);
+    }
+
+    function _resolveTrap(RunState storage run) internal {
+        if (run.currentHP > 0) {
+            run.currentHP -= 1;
+        }
+    }
+
+    function _heal(RunState storage run, uint8 amount) internal {
+        uint8 target = amount == type(uint8).max ? run.maxHP : run.currentHP + amount;
+        if (target > run.maxHP) {
+            target = run.maxHP;
+        }
+        run.currentHP = target;
+    }
+
+    function _grantTreasure(RunState storage run, uint256 random) internal {
+        uint256 roll = (random >> 16) % 100;
+        uint16 reward;
+        if (roll < 40) reward = 10;
+        else if (roll < 65) reward = 20;
+        else if (roll < 85) reward = 30;
+        else reward = 50;
+        run.gems += reward;
+    }
+
+    function _resolveMonster(RunState storage run, uint256 random) internal {
+        uint8 monsterHP = uint8(3 + (random % 4)); // 3-6 HP
+        uint8 monsterATK = uint8(1 + ((random >> 8) % 4)); // 1-4 ATK
+        uint8 monsterDEF = uint8((random >> 12) % 2); // 0-1 DEF
+        uint256 rolls = random >> 16;
+
+        for (uint8 round = 0; round < 6; round++) {
+            // Player attacks
+            bool playerHits = (rolls & 0xFF) % 100 < 80; // 80% chance
+            rolls >>= 8;
+            if (playerHits) {
+                uint8 dmg = run.atk > monsterDEF ? run.atk - monsterDEF : 1;
+                monsterHP = dmg >= monsterHP ? 0 : monsterHP - dmg;
+            }
+            if (monsterHP == 0) {
+                break;
+            }
+
+            // Monster attacks
+            bool monsterHits = (rolls & 0xFF) % 100 < 70; // 70% chance
+            rolls >>= 8;
+            if (monsterHits) {
+                uint8 dmg = monsterATK > run.def ? monsterATK - run.def : 1;
+                run.currentHP = dmg >= run.currentHP ? 0 : run.currentHP - dmg;
+                if (run.currentHP == 0) {
+                    return;
+                }
+            }
+        }
+
+        if (monsterHP == 0) {
+            // Reward: either gems or healing
+            uint8 rewardRoll = uint8(rolls % 3);
+            if (rewardRoll == 0) {
+                run.gems += 15;
+            } else if (rewardRoll == 1) {
+                _heal(run, 1);
+            } else {
+                _heal(run, type(uint8).max);
+            }
+        } else {
+            // Stalemate results in chip damage to player
+            if (run.currentHP > 0) {
+                run.currentHP = run.currentHP > 1 ? run.currentHP - 1 : 0;
+            }
+        }
+    }
+
+    function _drawCard(uint256 roll) internal pure returns (CardType) {
+        if (roll < 40) return CardType.Monster; // 40%
+        if (roll < 55) return CardType.Trap;    // 15%
+        if (roll < 70) return CardType.PotionSmall; // 15%
+        if (roll < 85) return CardType.PotionFull;  // 15%
+        return CardType.Treasure;                     // 15%
+    }
+
+    function _calculateScore(uint8 roomsCleared, uint16 gems, uint8 maxHP) internal pure returns (uint256) {
+        uint256 roomScore = uint256(roomsCleared) * 100;
+        uint256 gemScore = uint256(gems) * 5;
+        uint256 vitalityBonus = uint256(maxHP) * 10;
+        return roomScore + gemScore + vitalityBonus;
+    }
+
+    function _nextSeed(uint256 prevSeed, address player, uint256 salt) internal view returns (uint256) {
+        return uint256(keccak256(abi.encode(block.prevrandao, block.timestamp, player, salt, prevSeed)));
+    }
+
+    // Owner utilities --------------------------------------------------------
+
+    function pause() public onlyOwner {
         _pause();
     }
-    
-    /**
-     * @notice Unpause the contract
-     */
-    function unpause() external onlyOwner {
+
+    function unpause() public onlyOwner {
         _unpause();
     }
 }

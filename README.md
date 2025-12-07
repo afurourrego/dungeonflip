@@ -5,7 +5,7 @@
 [![Built for Seedify Vibe Coins](https://img.shields.io/badge/Built%20for-Seedify%20Vibe%20Coins-blue)](https://docs.seedify.fund/seedify-vibecoins/)
 [![Base Network](https://img.shields.io/badge/Network-Base-0052FF)](https://base.org/)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.20-363636)](https://soliditylang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 
 ---
 
@@ -33,7 +33,7 @@ DungeonFlip is an engaging card-based dungeon crawler where players mint NFT adv
 - **Testing:** Hardhat + Chai + Ethers.js
 
 ### Frontend
-- **Framework:** Next.js 14 (React, App Router)
+- **Framework:** Next.js 16 (React 19, App Router)
 - **Language:** TypeScript
 - **Styling:** TailwindCSS
 - **Web3:** Wagmi v2 + Viem v2
@@ -60,10 +60,10 @@ dungeonflip/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js v18+
+- Node.js 20 LTS (Hardhat crashes on 22+)
 - npm or yarn
 - MetaMask or Coinbase Wallet
-- Base Sepolia testnet ETH ([Get from faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))
+- Base Sepolia testnet ETH (bridge from Ethereum Sepolia via [bridge.base.org](https://bridge.base.org/) or request from the [Base faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))
 
 ### Installation
 
@@ -202,17 +202,25 @@ All AI prompts, iterations, and challenges are documented in the `ai_logs/` fold
 
 ---
 
-## 🚀 Deployment
+## 🚀 Deployment & Live Contracts
 
-### Testnet (Base Sepolia)
-- **Status:** ⏳ Coming Soon
-- **Contracts:** TBD
-- **Frontend:** TBD
+### Base Sepolia (Testnet)
+- **Status:** ✅ Live custodial build (Dec 7, 2025)
+- **Contracts:**
 
-### Mainnet (Base)
-- **Status:** ⏳ Coming Soon
-- **Contracts:** TBD
-- **Frontend:** TBD
+| Contract | Address |
+| --- | --- |
+| AventurerNFT | `0x23327A831E559549d7584218078538c547a10E67` |
+| FeeDistributor | `0xAa26dBcd21D32af565Fb336031171F4967fB3ca4` |
+| ProgressTracker | `0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E` |
+| RewardsPool | `0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb` |
+| DungeonGame | `0x9E4cD14a37959b6852951fcfbf495d838e9e36A8` |
+
+- **Frontend:** Deploy locally (`frontend/`) or point hosting to these addresses.
+
+### Base Mainnet
+- **Status:** ⏳ Not deployed yet (pending QA + audit)
+- **Next step:** rerun `scripts/deploy.ts` against `base` network once testing signs off.
 
 ---
 
@@ -267,9 +275,9 @@ Built by passionate developers leveraging AI tools to create innovative Web3 exp
 
 ---
 
-**Status:** 🚧 In Development  
+**Status:** 🧪 Testnet QA in progress  
 **Version:** 0.1.0  
-**Last Updated:** December 4, 2025
+**Last Updated:** December 7, 2025
 
 ---
 

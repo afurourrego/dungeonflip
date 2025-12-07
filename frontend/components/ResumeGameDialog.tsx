@@ -1,9 +1,14 @@
 'use client';
 
-import { GameSession } from '@/hooks/useGame';
+interface ResumeGameSession {
+  tokenId: bigint;
+  currentRoom: number;
+  currentHP: number;
+  gems: number;
+}
 
 interface ResumeGameDialogProps {
-  session: GameSession;
+  session: ResumeGameSession;
   onResume: () => void;
 }
 
@@ -29,7 +34,7 @@ export function ResumeGameDialog({ session, onResume }: ResumeGameDialogProps) {
             </div>
             <div>
               <p className="text-gray-400">Gems:</p>
-              <p className="text-blue-400 font-bold">{session.gemsCollected}</p>
+              <p className="text-blue-400 font-bold">{session.gems}</p>
             </div>
             <div>
               <p className="text-gray-400">NFT ID:</p>
