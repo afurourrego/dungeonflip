@@ -60,7 +60,7 @@ dungeonflip/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 20 LTS (Hardhat crashes on 22+)
+- Node.js 20.18.1 LTS (Hardhat crashes on 22+)
 - npm or yarn
 - MetaMask or Coinbase Wallet
 - Base Sepolia testnet ETH (bridge from Ethereum Sepolia via [bridge.base.org](https://bridge.base.org/) or request from the [Base faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useWatchContractEvent } from 'wagmi';
+import { useAccount, useWatchContractEvent, usePublicClient } from 'wagmi';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats, useDungeonApproval } from '@/hooks/useNFT';
 import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/useGame';
 import { AdventureLog } from '@/components/AdventureLog';
@@ -80,6 +80,8 @@ export default function GamePage() {
   }, [hash, isConfirming, refetchRun, refetchTokenId]);
 
   const [cardFeed, setCardFeed] = useState<CardFeedItem[]>([]);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const publicClient = usePublicClient();
 
   useWatchContractEvent({
     address: CONTRACTS.DUNGEON_GAME,
@@ -107,7 +109,19 @@ export default function GamePage() {
         })
         .reverse();
       if (entries.length) {
-        setCardFeed((prev) => [...entries, ...prev].slice(0, 6));
+        setCardFeed((prev) => {
+          const combined = [...entries, ...prev];
+          const seen = new Set<string>();
+          const deduped: CardFeedItem[] = [];
+          for (const item of combined) {
+            const key = `${item.txHash}-${item.cardType}-${item.room}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            deduped.push(item);
+            if (deduped.length >= 8) break;
+          }
+          return deduped;
+        });
         refetchRun();
       }
     },
@@ -184,11 +198,39 @@ export default function GamePage() {
 
   const handleChooseCard = async (cardIndex: number) => {
     if (!tokenId) return;
+    setCardError(null);
+    if (!isActive || !isDeposited) {
+      setCardError('Run is not active or NFT not deposited.');
+      return;
+    }
+    if (runState?.currentHP === 0) {
+      setCardError('HP is zero, cannot continue.');
+      return;
+    }
+    // Simulate to catch reverts before sending a tx
+    try {
+      await publicClient?.simulateContract({
+        address: CONTRACTS.DUNGEON_GAME,
+        abi: DungeonGameABI.abi,
+        functionName: 'chooseCard',
+        args: [tokenId, cardIndex],
+        account: address,
+      });
+    } catch (err) {
+      console.error('chooseCard simulation error', err);
+      const message = err instanceof Error ? err.message : String(err);
+      setCardError(message);
+      return;
+    }
     try {
       await chooseCard(tokenId, cardIndex);
+      refetchRun();
+      setTimeout(() => refetchRun(), 1200);
+      setTimeout(() => refetchRun(), 2500);
     } catch (err) {
       console.error('chooseCard error', err);
-      alert('Card reveal failed. Please try again.');
+      const message = err instanceof Error ? err.message : String(err);
+      setCardError(message);
     }
   };
 
@@ -241,18 +283,21 @@ export default function GamePage() {
       <header className="border-b border-purple-500/30 backdrop-blur-sm sticky top-0 z-20">
         <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-3xl">⚔️</span>
+            <span className="text-3xl font-bold">DF</span>
             <div>
               <h1 className="text-2xl font-bold">DungeonFlip</h1>
               <p className="text-xs text-purple-200/70">Base Sepolia</p>
             </div>
           </Link>
           <nav className="flex items-center gap-6">
+            <Link href="/" className="hover:text-purple-300 transition">
+              Home
+            </Link>
             <Link href="/nfts" className="hover:text-purple-300 transition">
-              💎 NFTs
+              Adventurers
             </Link>
             <Link href="/leaderboard" className="hover:text-purple-300 transition">
-              🏆 Leaderboard
+              Leaderboard
             </Link>
             <ConnectButton />
           </nav>
@@ -267,6 +312,9 @@ export default function GamePage() {
                 <div>
                   <p className="text-sm text-gray-400">Run Status</p>
                   <p className="text-2xl font-bold text-purple-300">{statusCopy}</p>
+                  {runState?.currentRoom ? (
+                    <p className="text-xs text-purple-200/80 mt-1">Current room: {runState.currentRoom}</p>
+                  ) : null}
                 </div>
                 <div className="text-sm text-gray-400">
                   Entry fee: <span className="text-white font-semibold">{entryFeeDisplay.toFixed(5)} ETH</span>
@@ -428,6 +476,7 @@ export default function GamePage() {
                   </button>
                 ))}
               </div>
+              {cardError && <p className="text-xs text-red-400 mt-3 break-words">{cardError}</p>}
               {!isActive && (
                 <p className="text-xs text-gray-500 mt-4">
                   You must be inside the dungeon with your NFT deposited to reveal cards.

@@ -1,12 +1,11 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useTotalSupply } from '@/hooks/useNFT';
-import { GAME_CONFIG, FEE_DISTRIBUTION, PRIZE_DISTRIBUTION } from '@/lib/constants';
-import { useState, useEffect } from 'react';
+import { GAME_CONFIG, PRIZE_DISTRIBUTION } from '@/lib/constants';
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -14,194 +13,142 @@ export default function Home() {
   const { data: totalSupply } = useTotalSupply();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   const hasNFT = nftBalance && Number(nftBalance) > 0;
 
   return (
-    <div className="min-h-screen relative">
-      {/* Header */}
-      <header className="border-b border-amber-700/30 backdrop-blur-md bg-gray-900/50 relative z-20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="grid grid-cols-3 items-center gap-4">
-            {/* Left: Logo */}
-            <Link href="/" className="flex items-center gap-2 justify-start">
-              <span className="text-3xl drop-shadow-lg">⚔️</span>
-              <div>
-                <h1 className="text-2xl font-bold text-dungeon-gold">
-                  Dungeon Flip
-                </h1>
-                <div className="text-[10px] text-amber-400/60 -mt-1">Powered by Base</div>
-              </div>
-            </Link>
-
-            {/* Center: Run Counter */}
-            <div className="flex justify-center">
-              <div className="run-counter">
-                <div className="text-xs text-amber-400/80 uppercase tracking-wider mb-1">Total Aventurers</div>
-                <div className="text-3xl font-bold dot-matrix text-dungeon-gold">
-                  {totalSupply !== undefined && totalSupply !== null ? totalSupply.toString() : '0'}
-                </div>
+    <div className="min-h-screen bg-gradient-to-b from-black via-[#0b0018] to-[#05030a] text-white">
+      <header className="border-b border-purple-500/30 backdrop-blur-md bg-black/60 sticky top-0 z-30">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-6 flex-wrap">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="text-3xl font-bold">DF</span>
+            <div>
+              <h1 className="text-2xl font-bold">DungeonFlip</h1>
+              <p className="text-xs text-purple-200/70">Base Sepolia</p>
+            </div>
+          </Link>
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <div className="run-counter">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-purple-200/70">Total Aventurers</div>
+              <div className="text-2xl font-bold dot-matrix text-amber-300">
+                {totalSupply !== undefined && totalSupply !== null ? totalSupply.toString() : '0'}
               </div>
             </div>
-
-            {/* Right: Nav + Wallet */}
-            <nav className="flex items-center gap-4 justify-end">
-              <Link 
-                href="/nfts" 
-                className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
-              >
-                💎 NFTs
+            <nav className="flex items-center gap-4 text-sm">
+              <Link href="/game" className="hover:text-amber-300 transition">
+                Game
               </Link>
-              <Link 
-                href="/leaderboard" 
-                className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
-              >
-                🏆 Leaderboard
+              <Link href="/nfts" className="hover:text-amber-300 transition">
+                Adventurers
               </Link>
-              <ConnectButton />
+              <Link href="/leaderboard" className="hover:text-amber-300 transition">
+                Leaderboard
+              </Link>
             </nav>
+            <ConnectButton />
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-12 relative z-10">
-        <div className="max-w-4xl mx-auto">
-          {/* Welcome Card */}
-          <div className="royal-board p-8 mb-8 text-center">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="text-4xl animate-bounce-slow">⚔️</span>
-              <h2 className="text-4xl font-bold text-dungeon-gold">Welcome to Dungeon Flip!</h2>
-            </div>
-            <div className="royal-divider mx-auto mb-6" />
-            <p className="text-xl text-amber-100/80 mb-8">
-              A Web3 dungeon crawler on Base blockchain. Battle monsters, collect gems, and compete for weekly prizes!
-            </p>
-
-            {/* Features Grid */}
-            <div className="grid md:grid-cols-3 gap-6 mb-8">
-              <div className="text-center p-6 bg-gray-900/50 rounded-lg border border-amber-800/30">
-                <Image 
-                  src="/cards/reverse.png" 
-                  alt="Flip Cards" 
-                  width={80} 
-                  height={100}
-                  className="mx-auto mb-3"
-                />
-                <h3 className="font-bold text-amber-300 mb-2">Flip Cards</h3>
-                <p className="text-sm text-amber-100/70">Choose wisely from 4 face-down cards each room</p>
+      <main className="container mx-auto px-4 py-12 space-y-10">
+        <section className="bg-black/60 border border-purple-500/30 rounded-2xl p-6 md:p-10 shadow-2xl">
+          <div className="flex flex-col xl:flex-row gap-8 items-start">
+            <div className="flex-1 space-y-4">
+              <p className="text-sm uppercase tracking-[0.3em] text-purple-300">On-chain dungeon runs</p>
+              <h2 className="text-4xl font-bold text-amber-200">Fight, flip, and claim the vault.</h2>
+              <p className="text-purple-100/80">
+                Mint a free Aventurer NFT, pay 0.00001 ETH to enter, flip through rooms, and climb the weekly leaderboard.
+                All moves resolve in the contract; the dungeon remembers your run.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <span className="px-3 py-1 bg-purple-900/40 border border-purple-600/40 rounded-full text-xs">4 cards per room</span>
+                <span className="px-3 py-1 bg-purple-900/40 border border-purple-600/40 rounded-full text-xs">Custodial runs</span>
+                <span className="px-3 py-1 bg-purple-900/40 border border-purple-600/40 rounded-full text-xs">Weekly rewards</span>
               </div>
-              
-              <div className="text-center p-6 bg-gray-900/50 rounded-lg border border-amber-800/30">
-                <Image 
-                  src="/cards/monster.png" 
-                  alt="Battle Monsters" 
-                  width={80} 
-                  height={100}
-                  className="mx-auto mb-3"
-                />
-                <h3 className="font-bold text-amber-300 mb-2">Battle Monsters</h3>
-                <p className="text-sm text-amber-100/70">Fight enemies with your aventurer's unique stats</p>
-              </div>
-              
-              <div className="text-center p-6 bg-gray-900/50 rounded-lg border border-amber-800/30">
-                <Image 
-                  src="/cards/gem.png" 
-                  alt="Earn Rewards" 
-                  width={80} 
-                  height={100}
-                  className="mx-auto mb-3"
-                />
-                <h3 className="font-bold text-amber-300 mb-2">Earn Rewards</h3>
-                <p className="text-sm text-amber-100/70">Collect gems and climb the leaderboard for prizes</p>
-              </div>
-            </div>
-
-            {/* CTA Buttons */}
-            {!mounted ? (
-              <div className="text-center py-4">
-                <p className="text-amber-100/70">Loading...</p>
-              </div>
-            ) : !isConnected ? (
-              <div className="text-center">
-                <p className="text-amber-100/80 mb-4">Connect your wallet to start playing</p>
-                <ConnectButton />
-              </div>
-            ) : !hasNFT ? (
-              <div className="text-center">
-                <p className="text-amber-100/80 mb-4">
-                  You need an Aventurer NFT to play. Mint one for free (just gas)!
-                </p>
-                <Link
-                  href="/mint"
-                  className="inline-block bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-bold py-3 px-8 rounded-lg transition transform hover:scale-105 shadow-lg"
-                >
-                  🎨 Mint Aventurer NFT
-                </Link>
-              </div>
-            ) : (
-              <div className="text-center">
+              <div className="flex gap-3 flex-wrap">
                 <Link
                   href="/game"
-                  className="inline-block bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-12 rounded-lg text-xl transition transform hover:scale-105 shadow-lg"
+                  className="bg-amber-400 hover:bg-amber-300 text-black font-bold px-6 py-3 rounded-lg transition"
                 >
-                  ⚔️ Start Playing
+                  Enter the dungeon
+                </Link>
+                <Link
+                  href="/nfts"
+                  className="bg-purple-700 hover:bg-purple-600 text-white font-bold px-6 py-3 rounded-lg transition"
+                >
+                  Manage Aventurers
+                </Link>
+                <Link
+                  href="/mint"
+                  className="border border-purple-500/60 text-purple-100 hover:bg-purple-900/40 font-bold px-6 py-3 rounded-lg transition"
+                >
+                  Mint free NFT
                 </Link>
               </div>
-            )}
+            </div>
+            <div className="w-full max-w-sm bg-gradient-to-b from-purple-900/40 to-black/70 border border-purple-700/50 rounded-2xl p-6">
+              <p className="text-xs uppercase tracking-[0.25em] text-purple-200/80 mb-2">Next room awaits</p>
+              <div className="dot-matrix text-5xl text-amber-300 mb-4">Room 1</div>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm text-purple-100/80">
+                  <span>Entry fee</span>
+                  <span className="font-bold text-amber-200">{GAME_CONFIG.ENTRY_FEE} ETH</span>
+                </div>
+                <div className="flex justify-between text-sm text-purple-100/80">
+                  <span>Prize share</span>
+                  <span className="font-bold text-amber-200">Top 10 (70/20/10 split)</span>
+                </div>
+                <div className="flex justify-between text-sm text-purple-100/80">
+                  <span>Custody</span>
+                  <span className="font-bold text-amber-200">NFT locked during run</span>
+                </div>
+              </div>
+              <div className="mt-6 text-xs text-purple-200/70">
+                Subtle stone textures and purple glyphs nod to the castle theme—without shouting it.
+              </div>
+            </div>
           </div>
+        </section>
 
-          {/* Weekly Treasure Pool */}
-          <div className="royal-board p-8 text-center">
-            <div className="flex items-center justify-center gap-2 mb-6">
-              <span className="text-4xl animate-bounce-slow">💰</span>
-              <h3 className="text-3xl font-bold text-dungeon-gold">Weekly Treasure Pool</h3>
-            </div>
-            <div className="royal-divider mx-auto mb-6" />
-            
-            <div className="bg-gradient-to-b from-amber-900/40 to-gray-900/60 rounded-lg p-6 mb-6 border-2 border-amber-600/50">
-              <div className="text-sm text-amber-300/80 mb-2">Current Prize Pool</div>
-              <div className="text-5xl font-bold text-dungeon-gold dot-matrix mb-2 animate-shine">
-                ETH {GAME_CONFIG.ENTRY_FEE}
-              </div>
-              <div className="text-xs text-amber-100/60">70% of all entry fees</div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center">
-                <div className="text-4xl mb-2 animate-bounce-slow">🥇</div>
-                <div className="text-2xl font-bold text-yellow-400 dot-matrix">{PRIZE_DISTRIBUTION[0]}%</div>
-                <div className="text-xs text-amber-100/60">1st Place</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl mb-2">🥈</div>
-                <div className="text-2xl font-bold text-gray-400 dot-matrix">{PRIZE_DISTRIBUTION[1]}%</div>
-                <div className="text-xs text-amber-100/60">2nd Place</div>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl mb-2">🥉</div>
-                <div className="text-2xl font-bold text-orange-400 dot-matrix">{PRIZE_DISTRIBUTION[2]}%</div>
-                <div className="text-xs text-amber-100/60">3rd Place</div>
-              </div>
-            </div>
-
-            <p className="text-amber-100/70 text-sm">
-              Top 10 players win prizes every week • Distributed automatically every Friday
-            </p>
+        <section className="bg-black/60 border border-purple-500/20 rounded-2xl p-8 grid md:grid-cols-3 gap-6">
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-purple-200/80 mb-2">1st</p>
+            <div className="text-4xl font-bold text-amber-300 dot-matrix mb-1">{PRIZE_DISTRIBUTION[0]}%</div>
+            <p className="text-purple-100/70 text-sm">Weekly rewards pool</p>
           </div>
-        </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-purple-200/80 mb-2">2nd</p>
+            <div className="text-4xl font-bold text-gray-200 dot-matrix mb-1">{PRIZE_DISTRIBUTION[1]}%</div>
+            <p className="text-purple-100/70 text-sm">Still a solid bounty</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-purple-200/80 mb-2">3rd</p>
+            <div className="text-4xl font-bold text-orange-300 dot-matrix mb-1">{PRIZE_DISTRIBUTION[2]}%</div>
+            <p className="text-purple-100/70 text-sm">Bring gems, climb ranks</p>
+          </div>
+        </section>
+
+        <section className="bg-black/50 border border-purple-500/10 rounded-2xl p-6 text-sm text-purple-100/70">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div>
+              <p className="uppercase tracking-[0.25em] text-[11px] text-purple-300">Navigation</p>
+              <p className="text-purple-100">Home • Game • Adventurers • Leaderboard</p>
+            </div>
+            <div className="flex gap-3">
+              <Link href="/game" className="px-4 py-2 rounded-lg bg-purple-800/60 hover:bg-purple-700/60 border border-purple-600/40">
+                Go to Game
+              </Link>
+              <Link href="/nfts" className="px-4 py-2 rounded-lg bg-purple-800/60 hover:bg-purple-700/60 border border-purple-600/40">
+                Manage NFTs
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-amber-700/30 mt-20 py-6">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-amber-100/60 text-sm">
-            © 2025 DungeonFlip • Built on Base • Play to Earn
-          </p>
-        </div>
+      <footer className="border-t border-purple-500/20 mt-10 py-6 text-center text-sm text-purple-200/70">
+        Built for Base • Smart runs, on-chain RNG, and weekly prizes.
       </footer>
     </div>
   );
