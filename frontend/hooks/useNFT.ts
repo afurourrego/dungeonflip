@@ -59,7 +59,11 @@ export function useDungeonApproval(owner?: `0x${string}`) {
 
 export function useNFT() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+  const {
+    data: receipt,
+    isLoading: isConfirming,
+    isSuccess: isConfirmed,
+  } = useWaitForTransactionReceipt({
     hash,
   });
 
@@ -78,6 +82,7 @@ export function useNFT() {
     isConfirmed,
     error,
     hash,
+    receipt,
   };
 }
 

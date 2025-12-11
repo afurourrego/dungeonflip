@@ -8,37 +8,9 @@
   }
 
   body {
-    background: #1a1625;
-    background-image: url('/background/dungeon.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
+    background: radial-gradient(120% 120% at 50% 20%, #1b1437 0%, #0b081c 35%, #05040d 75%);
     color: white;
     cursor: url('/CursorImg/cursor.png'), auto;
-  }
-  
-  /* Dim background slightly while keeping UI bright */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background: rgba(16, 12, 24, 0.55);
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  /* Subtle stone texture */
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image: 
-      radial-gradient(circle at 20% 50%, rgba(251, 191, 36, 0.03) 0%, transparent 55%),
-      radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.03) 0%, transparent 55%),
-      radial-gradient(circle at 40% 20%, rgba(251, 191, 36, 0.02) 0%, transparent 35%);
-    pointer-events: none;
-    z-index: -1;
   }
 
   button, a, [role="button"], .cursor-pointer {

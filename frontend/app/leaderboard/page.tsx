@@ -3,9 +3,8 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useAccount } from 'wagmi';
-import { useTopPlayers, usePlayerProgress, usePlayerRank } from '@/hooks/useLeaderboard';
+import { usePlayerProgress, usePlayerRank, useTopPlayers } from '@/hooks/useLeaderboard';
 import { PRIZE_DISTRIBUTION } from '@/lib/constants';
-import { formatEther } from 'viem';
 
 export default function LeaderboardPage() {
   const { address } = useAccount();
@@ -13,41 +12,31 @@ export default function LeaderboardPage() {
   const { data: playerProgress } = usePlayerProgress(address);
   const { data: playerRank } = usePlayerRank(address);
 
-  const shortenAddress = (addr: string) => {
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-  };
+  const shortenAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   return (
     <div className="min-h-screen relative">
-      {/* Header */}
-      <header className="border-b border-amber-700/30 backdrop-blur-md bg-gray-900/50 relative z-20">
+      <header className="border-b border-purple-700/40 backdrop-blur-md bg-black/80 relative z-20">
         <div className="container mx-auto px-4 py-4">
           <div className="grid grid-cols-3 items-center gap-4">
-            {/* Left: Logo */}
             <Link href="/" className="flex items-center gap-2 justify-start">
-              <span className="text-3xl drop-shadow-lg">⚔️</span>
+              <span className="text-3xl drop-shadow-lg">ƒs"‹÷?</span>
               <div>
-                <h1 className="text-2xl font-bold text-dungeon-gold">
-                  Dungeon Flip
-                </h1>
-                <div className="text-[10px] text-amber-400/60 -mt-1">Powered by Base</div>
+                <h1 className="text-2xl font-bold text-white">Dungeon Flip</h1>
+                <div className="text-[10px] text-white/60 -mt-1">Powered by Base</div>
               </div>
             </Link>
 
-            {/* Center: Trophy */}
             <div className="flex justify-center">
-              <div className="run-counter">
-                <div className="text-5xl animate-bounce-slow">🏆</div>
+              <div className="run-counter relative">
+                <div className="run-counter-shine" />
+                <div className="text-5xl animate-bounce-slow">ÐY?Å</div>
               </div>
             </div>
 
-            {/* Right: Nav + Wallet */}
             <nav className="flex items-center gap-4 justify-end">
-              <Link 
-                href="/game" 
-                className="text-amber-300/80 hover:text-dungeon-gold transition font-medium"
-              >
-                🎮 Play
+              <Link href="/game" className="text-white/80 hover:text-dungeon-gold transition font-medium">
+                Play
               </Link>
               <ConnectButton />
             </nav>
@@ -55,68 +44,64 @@ export default function LeaderboardPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12">
-        <h2 className="text-4xl font-bold text-center mb-12">
-          <span className="bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
-            🏆 Leaderboard
-          </span>
+      <main className="container mx-auto px-4 py-12 space-y-10">
+        <h2 className="text-4xl font-bold text-center">
+          <span className="text-white">Leaderboard</span>
         </h2>
 
-        {/* Player's Stats */}
         {address && playerProgress && (
-          <div className="max-w-4xl mx-auto mb-8 bg-purple-900/30 border border-purple-500/50 rounded-lg p-6">
-            <h3 className="text-xl font-bold mb-4">Your Stats</h3>
+          <div className="max-w-4xl mx-auto bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl p-6 shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-white">Your Stats</h3>
             <div className="grid md:grid-cols-4 gap-4">
-              <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-purple-400">
+              <div className="bg-[#16122c] rounded-lg p-4 text-center border border-purple-700/60">
+                <div className="text-2xl font-bold text-white">
                   {playerRank !== undefined && playerRank !== null ? `#${playerRank.toString()}` : 'Unranked'}
                 </div>
-                <div className="text-sm text-gray-400">Rank</div>
+                <div className="text-sm text-white/60">Rank</div>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-purple-400">
+              <div className="bg-[#16122c] rounded-lg p-4 text-center border border-purple-700/60">
+                <div className="text-2xl font-bold text-white">
                   {playerProgress?.weeklyScore?.toString() || '0'}
                 </div>
-                <div className="text-sm text-gray-400">Weekly Score</div>
+                <div className="text-sm text-white/60">Weekly Score</div>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-purple-400">
+              <div className="bg-[#16122c] rounded-lg p-4 text-center border border-purple-700/60">
+                <div className="text-2xl font-bold text-white">
                   {playerProgress?.totalScore?.toString() || '0'}
                 </div>
-                <div className="text-sm text-gray-400">Total Score</div>
+                <div className="text-sm text-white/60">Total Score</div>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                <div className="text-2xl font-bold text-purple-400">
+              <div className="bg-[#16122c] rounded-lg p-4 text-center border border-purple-700/60">
+                <div className="text-2xl font-bold text-white">
                   {playerProgress?.gamesPlayed?.toString() || '0'}
                 </div>
-                <div className="text-sm text-gray-400">Games Played</div>
+                <div className="text-sm text-white/60">Games Played</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Top 10 Players */}
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-purple-900/30 border border-purple-500/50 rounded-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-4">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <div className="bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="bg-[#16122c] p-4 border-b border-purple-700/60">
               <h3 className="text-xl font-bold text-center">Weekly Top 10 Players</h3>
-              <p className="text-sm text-center text-yellow-100 mt-1">
-                Winners share 70% of entry fees • Prizes distributed every Friday
+              <p className="text-sm text-center text-white/70 mt-1">
+                Winners share 70% of entry fees · Prizes distributed every Friday
               </p>
             </div>
 
             {isLoading ? (
-              <div className="p-12 text-center text-gray-400">
-                <div className="animate-spin text-4xl mb-4">⏳</div>
+              <div className="p-12 text-center text-white/60">
+                <div className="animate-spin text-4xl mb-4">ƒ?ü</div>
                 <p>Loading leaderboard...</p>
               </div>
             ) : !topPlayers || topPlayers.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <p className="text-4xl mb-4">🏆</p>
+              <div className="p-12 text-center text-white/60">
+                <p className="text-4xl mb-4">ÐY?Å</p>
                 <p>No players yet. Be the first to play!</p>
               </div>
             ) : (
-              <div className="divide-y divide-purple-500/30">
+              <div className="divide-y divide-purple-700/50">
                 {topPlayers.map((entry, index) => {
                   const rank = index + 1;
                   const prizePercentage = PRIZE_DISTRIBUTION[index] || 0;
@@ -126,37 +111,30 @@ export default function LeaderboardPage() {
                     <div
                       key={entry.player}
                       className={`p-4 flex items-center gap-4 ${
-                        isCurrentUser ? 'bg-purple-700/30' : 'hover:bg-gray-800/30'
+                        isCurrentUser ? 'bg-purple-700/20' : 'hover:bg-[#16122c]'
                       } transition`}
                     >
-                      {/* Rank */}
                       <div className="w-16 text-center">
-                        {rank === 1 && <span className="text-4xl">🥇</span>}
-                        {rank === 2 && <span className="text-4xl">🥈</span>}
-                        {rank === 3 && <span className="text-4xl">🥉</span>}
-                        {rank > 3 && (
-                          <span className="text-2xl font-bold text-gray-400">#{rank}</span>
-                        )}
+                        {rank === 1 && <span className="text-4xl">ÐY¾Î</span>}
+                        {rank === 2 && <span className="text-4xl">ÐY¾^</span>}
+                        {rank === 3 && <span className="text-4xl">ÐY¾%</span>}
+                        {rank > 3 && <span className="text-2xl font-bold text-gray-400">#{rank}</span>}
                       </div>
 
-                      {/* Player Address */}
                       <div className="flex-1">
                         <div className="font-mono text-lg">
                           {shortenAddress(entry.player)}
                           {isCurrentUser && (
-                            <span className="ml-2 text-xs bg-purple-500 px-2 py-1 rounded">YOU</span>
+                            <span className="ml-2 text-xs bg-purple-600 px-2 py-1 rounded">YOU</span>
                           )}
                         </div>
                       </div>
 
-                      {/* Score */}
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-purple-400">
-                          {entry.score.toString()} 💎
+                        <div className="text-2xl font-bold text-white">
+                          {entry.score.toString()} ÐY'Z
                         </div>
-                        <div className="text-sm text-gray-400">
-                          {prizePercentage}% of pool
-                        </div>
+                        <div className="text-sm text-white/70">{prizePercentage}% of pool</div>
                       </div>
                     </div>
                   );
@@ -165,29 +143,30 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          {/* Prize Distribution Info */}
-          <div className="mt-8 bg-gray-800/50 border border-purple-500/30 rounded-lg p-6">
-            <h4 className="text-lg font-bold mb-4 text-center">💰 Prize Distribution</h4>
+          <div className="bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl p-6 shadow-2xl">
+            <h4 className="text-lg font-bold mb-4 text-center text-white">Prize Distribution</h4>
             <div className="grid grid-cols-5 gap-3 text-sm">
               {PRIZE_DISTRIBUTION.map((percentage, index) => (
                 <div key={index} className="text-center">
-                  <div className="font-bold text-purple-400">#{index + 1}</div>
-                  <div className="text-gray-400">{percentage}%</div>
+                  <div className="font-bold text-white">#{index + 1}</div>
+                  <div className="text-white/80">{percentage}%</div>
                 </div>
               ))}
             </div>
-            <p className="text-center text-gray-400 text-sm mt-4">
+            <p className="text-center text-white/70 text-sm mt-4">
               Prizes are automatically distributed every week to the top 10 players
             </p>
           </div>
 
-          {/* Call to Action */}
-          <div className="mt-8 text-center">
+          <div className="royal-board p-6 text-center">
+            <p className="text-sm text-white/70 mb-3">
+              Flip, survive and climb. Every run increases your chance to claim the treasure pool.
+            </p>
             <Link
               href="/game"
               className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-lg transition transform hover:scale-105"
             >
-              ⚔️ Play Now and Climb the Ranks!
+              ƒs"‹÷? Play Now and Climb the Ranks!
             </Link>
           </div>
         </div>

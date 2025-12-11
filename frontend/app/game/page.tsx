@@ -279,7 +279,7 @@ export default function GamePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-[#0a0014] to-black text-white">
+    <div className="min-h-screen text-white">
       <header className="border-b border-purple-500/30 backdrop-blur-sm sticky top-0 z-20">
         <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2">
