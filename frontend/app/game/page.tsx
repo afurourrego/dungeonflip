@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useWatchContractEvent, usePublicClient } from 'wagmi';
+import { decodeEventLog } from 'viem';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats, useDungeonApproval } from '@/hooks/useNFT';
 import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/useGame';
 import { AdventureLog } from '@/components/AdventureLog';
+import { GameCard } from '@/components/GameCard';
 import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 
@@ -81,7 +83,114 @@ export default function GamePage() {
 
   const [cardFeed, setCardFeed] = useState<CardFeedItem[]>([]);
   const [cardError, setCardError] = useState<string | null>(null);
+  const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
+  const [revealedCards, setRevealedCards] = useState<Record<number, number>>({}); // index -> cardType
+  const [isChoosingCard, setIsChoosingCard] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
+  const selectedCardIndexRef = useRef<number | null>(null);
   const publicClient = usePublicClient();
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedCardIndexRef.current = selectedCardIndex;
+  }, [selectedCardIndex]);
+
+  // Function to reveal card from transaction receipt
+  const revealCardFromTx = useCallback(async (txHash: `0x${string}`) => {
+    if (!publicClient) return;
+    
+    console.log('Waiting for tx receipt:', txHash);
+    
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      console.log('Got receipt, logs:', receipt.logs.length);
+      
+      // Parse CardResolved event from logs using viem's decodeEventLog
+      for (const log of receipt.logs) {
+        try {
+          // Try to decode as CardResolved event
+          const decoded = decodeEventLog({
+            abi: DungeonGameABI.abi,
+            data: log.data,
+            topics: log.topics,
+          });
+          
+          console.log('Decoded event:', decoded.eventName, decoded.args);
+          
+          if (
+            decoded.eventName === 'CardResolved' &&
+            decoded.args &&
+            !Array.isArray(decoded.args) &&
+            'cardType' in decoded.args
+          ) {
+            const args = decoded.args as Record<string, unknown>;
+            const cardTypeValue = args.cardType;
+            if (cardTypeValue === undefined) {
+              continue;
+            }
+
+            const cardType = Number(cardTypeValue);
+            
+            const currentIndex = selectedCardIndexRef.current;
+            console.log('CardResolved! cardType:', cardType, 'selectedIndex:', currentIndex);
+            
+            if (currentIndex !== null) {
+              setRevealedCards((prev) => ({
+                ...prev,
+                [currentIndex]: cardType,
+              }));
+              setIsChoosingCard(false);
+              setPendingTxHash(null);
+              
+              // Add to feed
+              const roomValue = args.room;
+              const hpValue = args.hp;
+              const gemsValue = args.gems;
+
+              const newEntry: CardFeedItem = {
+                txHash: txHash,
+                cardType: cardType,
+                room: typeof roomValue === 'bigint' || typeof roomValue === 'number' ? Number(roomValue) : 0,
+                hp: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : 0,
+                gems: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : 0,
+              };
+              
+              setCardFeed((prev) => [newEntry, ...prev].slice(0, 8));
+              
+              // Auto-reset after 3 seconds
+              setTimeout(() => {
+                setRevealedCards({});
+                setSelectedCardIndex(null);
+              }, 3000);
+              
+              refetchRun();
+              return;
+            }
+          }
+        } catch {
+          // Not a CardResolved event or wrong contract, continue
+        }
+      }
+      
+      // If we get here, no CardResolved event was found - still reset state
+      console.log('No CardResolved event found in logs');
+      setIsChoosingCard(false);
+      setPendingTxHash(null);
+      refetchRun();
+      
+    } catch (err) {
+      console.error('Error getting tx receipt:', err);
+      setIsChoosingCard(false);
+      setPendingTxHash(null);
+    }
+  }, [publicClient, refetchRun]);
+
+  // Watch for pending tx to complete
+  useEffect(() => {
+    if (pendingTxHash && publicClient) {
+      revealCardFromTx(pendingTxHash);
+    }
+  }, [pendingTxHash, publicClient, revealCardFromTx]);
 
   useWatchContractEvent({
     address: CONTRACTS.DUNGEON_GAME,
@@ -109,6 +218,23 @@ export default function GamePage() {
         })
         .reverse();
       if (entries.length) {
+        // Reveal the selected card with the resolved type
+        const latestEntry = entries[0];
+        const currentSelectedIndex = selectedCardIndexRef.current;
+        
+        if (currentSelectedIndex !== null) {
+          setRevealedCards((prev) => ({
+            ...prev,
+            [currentSelectedIndex]: latestEntry.cardType,
+          }));
+          setIsChoosingCard(false);
+          // Auto-reset cards after showing the result for 3 seconds
+          setTimeout(() => {
+            setRevealedCards({});
+            setSelectedCardIndex(null);
+          }, 3000);
+        }
+
         setCardFeed((prev) => {
           const combined = [...entries, ...prev];
           const seen = new Set<string>();
@@ -207,6 +333,11 @@ export default function GamePage() {
       setCardError('HP is zero, cannot continue.');
       return;
     }
+    
+    // Set loading state for the selected card
+    setSelectedCardIndex(cardIndex);
+    setIsChoosingCard(true);
+    
     // Simulate to catch reverts before sending a tx
     try {
       await publicClient?.simulateContract({
@@ -220,10 +351,16 @@ export default function GamePage() {
       console.error('chooseCard simulation error', err);
       const message = err instanceof Error ? err.message : String(err);
       setCardError(message);
+      setSelectedCardIndex(null);
+      setIsChoosingCard(false);
       return;
     }
     try {
-      await chooseCard(tokenId, cardIndex);
+      const txHash = await chooseCard(tokenId, cardIndex);
+      // Set the pending tx hash to trigger receipt watching
+      if (txHash) {
+        setPendingTxHash(txHash);
+      }
       refetchRun();
       setTimeout(() => refetchRun(), 1200);
       setTimeout(() => refetchRun(), 2500);
@@ -231,6 +368,8 @@ export default function GamePage() {
       console.error('chooseCard error', err);
       const message = err instanceof Error ? err.message : String(err);
       setCardError(message);
+      setSelectedCardIndex(null);
+      setIsChoosingCard(false);
     }
   };
 
@@ -465,15 +604,16 @@ export default function GamePage() {
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {cardButtons.map(({ index, label }) => (
-                  <button
+                  <GameCard
                     key={label}
+                    index={index}
+                    label={label}
+                    disabled={cardDisabled || isChoosingCard}
+                    revealed={revealedCards[index] !== undefined}
+                    revealedType={revealedCards[index]}
                     onClick={() => handleChooseCard(index)}
-                    disabled={cardDisabled}
-                    className="bg-gradient-to-b from-purple-800 to-purple-900 border border-purple-500/40 rounded-xl py-6 text-center font-bold text-lg disabled:opacity-40"
-                  >
-                    ❓
-                    <div className="text-sm mt-2">{label}</div>
-                  </button>
+                    isLoading={isChoosingCard && selectedCardIndex === index}
+                  />
                 ))}
               </div>
               {cardError && <p className="text-xs text-red-400 mt-3 break-words">{cardError}</p>}
