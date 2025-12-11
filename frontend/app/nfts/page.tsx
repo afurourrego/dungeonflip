@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { useAccount, useReadContract, usePublicClient } from 'wagmi';
 import { useWalletNFTs } from '@/hooks/useNFT';
 import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
@@ -28,13 +28,36 @@ const formatDate = (timestamp?: bigint) => {
 export default function NFTsPage() {
   const { address, isConnected, chain } = useAccount();
   const { data: nfts, isLoading, error, refresh } = useWalletNFTs(address);
-  const { writeContract, data: hash, isPending, error: txError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
-  const [selectedToken, setSelectedToken] = useState<bigint | null>(null);
+  const publicClient = usePublicClient();
+  const [sortKey, setSortKey] = useState<SortKey>('atk');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [showInDungeon, setShowInDungeon] = useState<'all' | 'active' | 'idle'>('all');
   const [mounted, setMounted] = useState(false);
+  const [activeNFT, setActiveNFT] = useState<{ tokenId: bigint; stats: { atk: bigint; def: bigint; hp: bigint; mintedAt: bigint } } | null>(null);
 
-  const burnAddress = BURN_ADDRESSES.BASE_SEPOLIA;
-  const isWrongNetwork = chain && chain.id !== CURRENT_NETWORK.id;
+  const { data: activeToken } = useReadContract({
+    address: CONTRACTS.DUNGEON_GAME,
+    abi: DungeonGameABI.abi,
+    functionName: 'activeTokenByWallet',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, staleTime: 3000, refetchInterval: 5000 },
+  });
+
+  useEffect(() => setMounted(true), []);
+
+  // If the active token is in custody (not in tokensOfOwner), fetch its stats so it appears in the list
+  const activeTokenId = (activeToken as bigint | undefined) ?? BigInt(0);
+
+  const sorted = useMemo(() => {
+    const baseList = activeNFT ? [...nfts, activeNFT] : [...nfts];
+    const list = [...baseList];
+    list.sort((a, b) => {
+      const aVal = Number(a.stats[sortKey]);
+      const bVal = Number(b.stats[sortKey]);
+      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+    return list;
+  }, [nfts, sortKey, sortDir, activeNFT]);
 
   useEffect(() => {
     setMounted(true);
@@ -81,6 +104,10 @@ export default function NFTsPage() {
                 <div className="text-[10px] text-white/60 -mt-1">NFT Vault</div>
               </div>
             </Link>
+          </nav>
+          <ConnectButton />
+        </div>
+      </header>
 
             <div className="text-center">
               <p className="text-xs text-white/60 uppercase tracking-[0.3em]">Base Sepolia</p>
@@ -94,11 +121,8 @@ export default function NFTsPage() {
               <Link href="/leaderboard" className="text-white/80 hover:text-dungeon-gold transition font-medium">
                 Leaderboard
               </Link>
-              <ConnectButton />
-            </nav>
+            </div>
           </div>
-        </div>
-      </header>
 
       <main className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-5xl mx-auto space-y-8">
@@ -218,9 +242,9 @@ export default function NFTsPage() {
                   })}
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+            </>
+          )}
+        </section>
       </main>
     </div>
   );

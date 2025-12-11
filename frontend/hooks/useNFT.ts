@@ -107,7 +107,7 @@ export function useNFTBalance(address?: `0x${string}`) {
 export function useNFTOwnerTokens(address?: `0x${string}`) {
   const publicClient = usePublicClient();
   const { data: totalSupply } = useTotalSupply();
-  
+
   // PRIORITY 1: Read activeTokenByWallet from contract (instant, no scanning)
   const { data: activeToken, refetch: refetchActiveToken, isFetching: isFetchingActive, error: activeError } = useReadContract({
     address: CONTRACTS.DUNGEON_GAME,
@@ -121,6 +121,9 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
     },
   });
 
+  const [ownedTokens, setOwnedTokens] = useState<bigint[]>([]);
+  const [enumerationSupported, setEnumerationSupported] = useState(true);
+
   const [walletTokenId, setWalletTokenId] = useState<bigint | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -129,71 +132,110 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
   const activeTokenBigInt = activeToken as bigint | undefined;
   const hasActiveToken = activeTokenBigInt !== undefined && activeTokenBigInt > BigInt(0);
 
-  // Scan wallet for owned tokens (only if no active token in game)
+  // Try enumerating tokensOfOwner if supported
   useEffect(() => {
     if (!address || !publicClient || hasActiveToken) {
-      if (hasActiveToken) {
-        setWalletTokenId(undefined); // Clear wallet token since we have an active one
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const tokens = (await publicClient.readContract({
+          address: CONTRACTS.AVENTURER_NFT,
+          abi: AventurerNFTABI.abi,
+          functionName: 'tokensOfOwner',
+          args: [address],
+        })) as bigint[];
+        if (cancelled) return;
+        setEnumerationSupported(true);
+        setOwnedTokens(tokens);
+      } catch (err) {
+        if (cancelled) return;
+        // tokensOfOwner not supported or reverted; fall back to scan
+        setEnumerationSupported(false);
+        setOwnedTokens([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, publicClient, hasActiveToken]);
+
+  // If enumeration unsupported, fall back to limited scan
+  useEffect(() => {
+    if (hasActiveToken) {
+      setWalletTokenId(undefined);
+      setError(null);
+      setIsLoading(false);
       return;
     }
 
-    let cancelled = false;
-
-    const scanWallet = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const supply = totalSupply !== undefined ? Number(totalSupply) : 0;
-        const maxTokens = Math.max(Math.min(supply, 100), 10);
-        const lowercased = address.toLowerCase();
-
-        for (let id = 1; id <= maxTokens; id++) {
-          if (cancelled) return;
-          const owner = await publicClient
-            .readContract({
-              address: CONTRACTS.AVENTURER_NFT,
-              abi: AventurerNFTABI.abi,
-              functionName: 'ownerOf',
-              args: [BigInt(id)],
-            })
-            .catch(() => null);
-
-          if (typeof owner === 'string' && owner.toLowerCase() === lowercased) {
-            if (!cancelled) {
-              setWalletTokenId(BigInt(id));
+    if (!enumerationSupported && address && publicClient && totalSupply !== undefined) {
+      let cancelled = false;
+      const scan = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          const supply = Number(totalSupply);
+          const maxTokens = Math.max(Math.min(supply, 50), 10);
+          const normalized = address.toLowerCase();
+          for (let i = 1; i <= maxTokens; i++) {
+            if (cancelled) return;
+            const owner = await publicClient
+              .readContract({
+                address: CONTRACTS.AVENTURER_NFT,
+                abi: AventurerNFTABI.abi,
+                functionName: 'ownerOf',
+                args: [BigInt(i)],
+              })
+              .catch(() => null);
+            if (typeof owner === 'string' && owner.toLowerCase() === normalized) {
+              setWalletTokenId(BigInt(i));
+              return;
             }
-            return;
           }
-        }
-
-        if (!cancelled) {
           setWalletTokenId(undefined);
+        } catch (err) {
+          if (!cancelled) setError(err as Error);
+        } finally {
+          if (!cancelled) setIsLoading(false);
         }
-      } catch (err) {
-        console.error('Error scanning wallet NFTs', err);
-        if (!cancelled) {
-          setError(err instanceof Error ? err : new Error('Scan failed'));
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
+      };
+      scan();
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    scanWallet();
-    return () => { cancelled = true; };
-  }, [address, publicClient, totalSupply, hasActiveToken]);
+    // If enumeration works, pick first owned token
+    if (ownedTokens.length > 0) {
+      setWalletTokenId(ownedTokens[0]);
+      setError(null);
+    } else {
+      setWalletTokenId(undefined);
+    }
+  }, [hasActiveToken, enumerationSupported, ownedTokens, address, publicClient, totalSupply]);
+
+  // Bubble up error only if both active and owned failed due to revert
+  useEffect(() => {
+    if (activeError && !(activeError as any).message?.includes('tokensOfOwner')) {
+      setError(activeError as Error);
+      return;
+    }
+  }, [activeError]);
 
   // Final tokenId: prefer active token, fallback to wallet token
   const tokenId = hasActiveToken ? activeTokenBigInt : walletTokenId;
 
   const refetch = useCallback(async () => {
     const result = await refetchActiveToken();
-    // Force re-scan wallet if no active token found
     if (!result.data || (result.data as bigint) === BigInt(0)) {
-      setWalletTokenId(undefined);
+      // Trigger re-load of owned tokens path
+      setOwnedTokens([]);
     }
   }, [refetchActiveToken]);
 
@@ -236,6 +278,9 @@ export function useWalletNFTs(address?: `0x${string}`) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const [enumerationSupported, setEnumerationSupported] = useState(true);
+  const [ownedTokens, setOwnedTokens] = useState<bigint[]>([]);
+
   const fetchNFTs = useCallback(async () => {
     if (!address || !publicClient) {
       setData([]);
@@ -243,45 +288,39 @@ export function useWalletNFTs(address?: `0x${string}`) {
       return;
     }
 
-    if (totalSupply === undefined) {
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
 
     try {
-      const maxTokens = Math.min(Number(totalSupply), 50);
+      let ownedTokenIds = ownedTokens;
 
-      if (maxTokens <= 0) {
-        setData([]);
-        return;
-      }
-
-      const tokenIds = Array.from({ length: maxTokens }, (_, index) => BigInt(index + 1));
-      const owners = await Promise.all(
-        tokenIds.map((tokenId) =>
-          publicClient
+      // If we don't have enumeration, fall back to a limited scan
+      if (!enumerationSupported) {
+        if (totalSupply === undefined) {
+          setIsLoading(false);
+          return;
+        }
+        const supply = Number(totalSupply);
+        const maxTokens = Math.max(Math.min(supply, 50), 10);
+        const normalized = address.toLowerCase();
+        const found: bigint[] = [];
+        for (let i = 1; i <= maxTokens; i++) {
+          const owner = await publicClient
             .readContract({
               address: CONTRACTS.AVENTURER_NFT,
               abi: AventurerNFTABI.abi,
               functionName: 'ownerOf',
-              args: [tokenId],
+              args: [BigInt(i)],
             })
-            .catch((err) => {
-              console.warn('ownerOf failed for token', tokenId.toString(), err);
-              return null;
-            })
-        )
-      );
+            .catch(() => null);
+          if (typeof owner === 'string' && owner.toLowerCase() === normalized) {
+            found.push(BigInt(i));
+          }
+        }
+        ownedTokenIds = found;
+      }
 
-      const normalizedAddress = address.toLowerCase();
-      const ownedTokenIds = tokenIds.filter((tokenId, index) => {
-        const owner = owners[index];
-        return typeof owner === 'string' && owner.toLowerCase() === normalizedAddress;
-      });
-
-      if (ownedTokenIds.length === 0) {
+      if (!ownedTokenIds.length) {
         setData([]);
         return;
       }
@@ -309,7 +348,34 @@ export function useWalletNFTs(address?: `0x${string}`) {
     } finally {
       setIsLoading(false);
     }
-  }, [address, publicClient, totalSupply]);
+  }, [address, publicClient, ownedTokens, enumerationSupported, totalSupply]);
+
+  // Load owned tokens via tokensOfOwner if supported
+  useEffect(() => {
+    if (!address || !publicClient) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const tokens = (await publicClient.readContract({
+          address: CONTRACTS.AVENTURER_NFT,
+          abi: AventurerNFTABI.abi,
+          functionName: 'tokensOfOwner',
+          args: [address],
+        })) as bigint[];
+        if (cancelled) return;
+        setEnumerationSupported(true);
+        setOwnedTokens(tokens);
+      } catch (err) {
+        if (cancelled) return;
+        setEnumerationSupported(false);
+        setOwnedTokens([]);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, publicClient]);
 
   useEffect(() => {
     fetchNFTs();
@@ -319,6 +385,8 @@ export function useWalletNFTs(address?: `0x${string}`) {
     data,
     isLoading,
     error,
-    refresh: fetchNFTs,
+    refresh: async () => {
+      await fetchNFTs();
+    },
   };
 }

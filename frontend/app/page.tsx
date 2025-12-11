@@ -1,8 +1,9 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useTotalSupply } from '@/hooks/useNFT';
 import { GAME_CONFIG, PRIZE_DISTRIBUTION } from '@/lib/constants';
@@ -46,8 +47,8 @@ export default function Home() {
               <Link href="/leaderboard" className="text-white/80 hover:text-white transition font-medium">
                 Leaderboard
               </Link>
-              <ConnectButton />
             </nav>
+            <ConnectButton />
           </div>
         </div>
       </header>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * 
  * Built with AI assistance (GitHub Copilot + Claude) for Seedify Vibe Coins Hackathon
  */
-contract AventurerNFT is ERC721, Ownable, Pausable {
+contract AventurerNFT is ERC721Enumerable, Ownable, Pausable {
     
     // ============================================
     // STATE VARIABLES
@@ -108,13 +108,18 @@ contract AventurerNFT is ERC721, Ownable, Pausable {
     }
     
     /**
-     * @notice Get the total number of minted adventurers
-     * @return The total supply of NFTs
+     * @notice Enumerate all tokens owned by an address.
+     * @dev Provided for frontend listing without brute-force scans.
      */
-    function totalSupply() external view returns (uint256) {
-        return _nextTokenId - 1;
+    function tokensOfOwner(address owner) external view returns (uint256[] memory) {
+        uint256 balance = balanceOf(owner);
+        uint256[] memory ids = new uint256[](balance);
+        for (uint256 i = 0; i < balance; i++) {
+            ids[i] = tokenOfOwnerByIndex(owner, i);
+        }
+        return ids;
     }
-    
+
     /**
      * @notice Check if an address owns a specific token
      * @param owner The address to check
@@ -221,6 +226,13 @@ contract AventurerNFT is ERC721, Ownable, Pausable {
         
         // Return baseURI + tokenId (e.g., "ipfs://abc/1")
         return string(abi.encodePacked(baseURI, _toString(tokenId)));
+    }
+
+    /**
+     * @dev Resolve multiple inheritance for supportsInterface.
+     */
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721Enumerable, ERC721) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
     
     /**
