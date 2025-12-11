@@ -1,17 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useReadContract, usePublicClient } from 'wagmi';
-import { useWalletNFTs } from '@/hooks/useNFT';
-import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK } from '@/lib/constants';
-import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
+import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { AventurerStats, WalletNFT, useWalletNFTs } from '@/hooks/useNFT';
 import { getAventurerClass } from '@/lib/aventurer';
+import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK, NETWORKS } from '@/lib/constants';
+import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
+import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
+
+type SortKey = keyof Pick<AventurerStats, 'atk' | 'def' | 'hp' | 'mintedAt'>;
+type SortDir = 'asc' | 'desc';
 
 const formatDate = (timestamp?: bigint) => {
-  if (!timestamp) return 'ƒ?"';
+  if (!timestamp || timestamp === BigInt(0)) return '--';
   const date = new Date(Number(timestamp) * 1000);
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -27,13 +31,19 @@ const formatDate = (timestamp?: bigint) => {
 
 export default function NFTsPage() {
   const { address, isConnected, chain } = useAccount();
-  const { data: nfts, isLoading, error, refresh } = useWalletNFTs(address);
   const publicClient = usePublicClient();
+  const { data: nfts = [], isLoading, error, refresh } = useWalletNFTs(address);
+
   const [sortKey, setSortKey] = useState<SortKey>('atk');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [showInDungeon, setShowInDungeon] = useState<'all' | 'active' | 'idle'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'idle'>('all');
   const [mounted, setMounted] = useState(false);
-  const [activeNFT, setActiveNFT] = useState<{ tokenId: bigint; stats: { atk: bigint; def: bigint; hp: bigint; mintedAt: bigint } } | null>(null);
+  const [selectedToken, setSelectedToken] = useState<bigint | null>(null);
+  const [activeNFT, setActiveNFT] = useState<WalletNFT | null>(null);
+
+  const burnAddress =
+    chain?.id === NETWORKS.BASE_MAINNET.id ? BURN_ADDRESSES.BASE_MAINNET : BURN_ADDRESSES.BASE_SEPOLIA;
+  const isWrongNetwork = chain?.id !== undefined && chain.id !== CURRENT_NETWORK.id;
 
   const { data: activeToken } = useReadContract({
     address: CONTRACTS.DUNGEON_GAME,
@@ -42,26 +52,71 @@ export default function NFTsPage() {
     args: address ? [address] : undefined,
     query: { enabled: !!address, staleTime: 3000, refetchInterval: 5000 },
   });
+  const activeTokenId = (activeToken as bigint | undefined) ?? BigInt(0);
+
+  const { writeContractAsync, data: txHash, isPending, error: txError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   useEffect(() => setMounted(true), []);
 
   // If the active token is in custody (not in tokensOfOwner), fetch its stats so it appears in the list
-  const activeTokenId = (activeToken as bigint | undefined) ?? BigInt(0);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!publicClient || activeTokenId === BigInt(0)) {
+        setActiveNFT(null);
+        return;
+      }
+      const ownedList = nfts ?? [];
+      if (ownedList.some((nft) => nft.tokenId === activeTokenId)) {
+        setActiveNFT(null);
+        return;
+      }
+      try {
+        const stats = (await publicClient.readContract({
+          address: CONTRACTS.AVENTURER_NFT,
+          abi: AventurerNFTABI.abi,
+          functionName: 'getAventurerStats',
+          args: [activeTokenId],
+        })) as AventurerStats;
+        if (!cancelled) {
+          setActiveNFT({ tokenId: activeTokenId, stats });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to fetch active NFT stats', err);
+          setActiveNFT(null);
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [publicClient, activeTokenId, nfts]);
 
   const sorted = useMemo(() => {
-    const baseList = activeNFT ? [...nfts, activeNFT] : [...nfts];
-    const list = [...baseList];
-    list.sort((a, b) => {
+    const baseList = [...(nfts ?? [])];
+    if (activeNFT && !baseList.some((nft) => nft.tokenId === activeNFT.tokenId)) {
+      baseList.push(activeNFT);
+    }
+    return baseList.sort((a, b) => {
       const aVal = Number(a.stats[sortKey]);
       const bVal = Number(b.stats[sortKey]);
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
-    return list;
   }, [nfts, sortKey, sortDir, activeNFT]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const displayList = useMemo(
+    () =>
+      sorted.filter((nft) => {
+        const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
+        if (statusFilter === 'active') return isActiveToken;
+        if (statusFilter === 'idle') return !isActiveToken;
+        return true;
+      }),
+    [sorted, statusFilter, activeTokenId]
+  );
 
   useEffect(() => {
     if (isSuccess) {
@@ -80,7 +135,7 @@ export default function NFTsPage() {
     setSelectedToken(tokenId);
 
     try {
-      await writeContract({
+      await writeContractAsync({
         address: CONTRACTS.AVENTURER_NFT,
         abi: AventurerNFTABI.abi,
         functionName: 'safeTransferFrom',
@@ -92,28 +147,24 @@ export default function NFTsPage() {
     }
   };
 
+  const txErrorMessage = txError ? (txError instanceof Error ? txError.message : String(txError)) : null;
+
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative text-white">
       <header className="border-b border-purple-700/40 backdrop-blur-md bg-black/80 relative z-20">
         <div className="container mx-auto px-4 py-4">
-          <div className="grid grid-cols-3 items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 justify-start">
-              <span className="text-3xl drop-shadow-lg">⚔</span>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="text-3xl font-bold">DF</span>
               <div>
-                <h1 className="text-2xl font-bold text-white">DungeonFlip</h1>
+                <h1 className="text-2xl font-bold">DungeonFlip</h1>
                 <div className="text-[10px] text-white/60 -mt-1">NFT Vault</div>
               </div>
             </Link>
-          </nav>
-          <ConnectButton />
-        </div>
-      </header>
-
             <div className="text-center">
-              <p className="text-xs text-white/60 uppercase tracking-[0.3em]">Base Sepolia</p>
+              <p className="text-xs text-white/60 uppercase tracking-[0.3em]">{CURRENT_NETWORK.name}</p>
               <p className="text-white font-bold text-lg">NFT Collection</p>
             </div>
-
             <nav className="flex items-center gap-4 justify-end">
               <Link href="/game" className="text-white/80 hover:text-dungeon-gold transition font-medium">
                 Game
@@ -121,23 +172,24 @@ export default function NFTsPage() {
               <Link href="/leaderboard" className="text-white/80 hover:text-dungeon-gold transition font-medium">
                 Leaderboard
               </Link>
-            </div>
+              <ConnectButton />
+            </nav>
           </div>
+        </div>
+      </header>
 
       <main className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-5xl mx-auto space-y-8">
           <div className="bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl p-8 shadow-2xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
               <div>
-                <h2 className="text-3xl font-bold text-white mb-2">Your Aventurers</h2>
-                <p className="text-white/70 text-sm">
-                  View every NFT in your connected wallet and handle quick transfers or burns.
-                </p>
+                <h2 className="text-3xl font-bold mb-2">Your Aventurers</h2>
+                <p className="text-white/70 text-sm">View every NFT in your connected wallet and handle quick burns.</p>
               </div>
               <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4 text-center">
-                <p className="text-xs text-white/70 uppercase tracking-widest mb-1">Burn Address</p>
+                <p className="text-xs text-white/70 uppercase tracking-widest mb-1">Burn address</p>
                 <p className="font-mono text-sm text-white break-all">{burnAddress}</p>
-                <p className="text-[10px] text-white/50 mt-1">All transfers are irreversible</p>
+                <p className="text-[10px] text-white/50 mt-1">Transfers to burn are irreversible</p>
               </div>
             </div>
 
@@ -157,6 +209,41 @@ export default function NFTsPage() {
               </div>
             ) : (
               <div className="space-y-6">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm text-white/70">Sort by</label>
+                    <select
+                      value={sortKey}
+                      onChange={(e) => setSortKey(e.target.value as SortKey)}
+                      className="bg-[#16122c] border border-purple-700/60 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="atk">ATK</option>
+                      <option value="def">DEF</option>
+                      <option value="hp">HP</option>
+                      <option value="mintedAt">Minted</option>
+                    </select>
+                    <button
+                      onClick={() => setSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))}
+                      className="bg-[#16122c] border border-purple-700/60 rounded-lg px-3 py-2 text-sm"
+                    >
+                      {sortDir === 'asc' ? 'Asc' : 'Desc'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(['all', 'active', 'idle'] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        onClick={() => setStatusFilter(filter)}
+                        className={`px-3 py-2 rounded-lg text-sm border ${
+                          statusFilter === filter ? 'bg-purple-700/60 border-purple-500' : 'bg-[#16122c] border-purple-700/60'
+                        }`}
+                      >
+                        {filter === 'all' ? 'All' : filter === 'active' ? 'In dungeon' : 'In wallet'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {isLoading && <div className="text-center text-white/70">Loading NFTs...</div>}
 
                 {error && (
@@ -165,13 +252,13 @@ export default function NFTsPage() {
                   </div>
                 )}
 
-                {txError && (
+                {txErrorMessage && (
                   <div className="bg-red-900/40 border border-red-700/60 rounded-lg p-4 text-center text-red-200">
-                    Transaction error: {txError.message}
+                    Transaction error: {txErrorMessage}
                   </div>
                 )}
 
-                {!isLoading && nfts.length === 0 && (
+                {!isLoading && displayList.length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-white/80 mb-4">You do not own any Aventurers yet.</p>
                     <Link
@@ -184,8 +271,9 @@ export default function NFTsPage() {
                 )}
 
                 <div className="grid md:grid-cols-2 gap-6">
-                  {nfts.map((nft) => {
+                  {displayList.map((nft) => {
                     const nftClass = getAventurerClass(nft.stats);
+                    const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
                     return (
                       <div
                         key={nft.tokenId.toString()}
@@ -194,7 +282,14 @@ export default function NFTsPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-xs text-white/70">Token ID</p>
-                            <p className="text-2xl font-bold text-white">#{nft.tokenId.toString()}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-2xl font-bold text-white">#{nft.tokenId.toString()}</p>
+                              {isActiveToken && (
+                                <span className="text-[10px] px-2 py-1 rounded-full bg-green-600/30 border border-green-400/60 text-green-100">
+                                  In dungeon
+                                </span>
+                              )}
+                            </div>
                             {nftClass && (
                               <span
                                 className={`inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-full text-xs font-semibold text-black bg-gradient-to-r ${nftClass.accent}`}
@@ -223,9 +318,7 @@ export default function NFTsPage() {
 
                         <div className="text-xs text-white/70">
                           Minted: {formatDate(nft.stats.mintedAt)}
-                          {nftClass && (
-                            <span className="ml-2 text-white/80 font-semibold">· Clase {nftClass.name}</span>
-                          )}
+                          {nftClass && <span className="ml-2 text-white/80 font-semibold">Class {nftClass.name}</span>}
                         </div>
 
                         <button
@@ -242,9 +335,9 @@ export default function NFTsPage() {
                   })}
                 </div>
               </div>
-            </>
-          )}
-        </section>
+            )}
+          </div>
+        </div>
       </main>
     </div>
   );
