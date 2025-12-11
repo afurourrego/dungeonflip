@@ -153,11 +153,11 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
             feeDistributor.distributeEntryFee{value: ENTRY_FEE}();
         } else {
             // Resume: verify caller owns this paused run
-            require(run.lastKnownOwner == msg.sender, "not run owner");
             require(aventurerNFT.ownerOf(tokenId) == msg.sender, "NFT not in wallet");
             require(msg.value == 0, "resume is free");
             require(run.currentHP > 0, "no HP to resume");
             run.status = RunStatus.Active;
+            run.lastKnownOwner = msg.sender;
             run.nftDeposited = true;
             
             // Re-track active token on resume
