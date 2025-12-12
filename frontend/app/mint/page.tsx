@@ -95,13 +95,13 @@ export default function MintPage() {
               <span className="text-3xl drop-shadow-lg">⚔</span>
               <div>
                 <h1 className="text-2xl font-bold text-white">Dungeon Flip</h1>
-                <div className="text-[10px] text-white/60 -mt-1">Mint Aventurer</div>
+                <div className="text-[10px] text-white/60 -mt-1">Mint Adventurers</div>
               </div>
             </Link>
 
             <div className="flex justify-center">
               <div className="run-counter relative bg-[#18132f] border border-purple-500/70 shadow-lg">
-                <div className="text-xs text-white/70 uppercase tracking-wider mb-1">NFTs en tu wallet</div>
+                <div className="text-xs text-white/70 uppercase tracking-wider mb-1">NFTs in your wallet</div>
                 <div className="text-3xl font-bold dot-matrix text-dungeon-gold">
                   {mounted ? mintedCount : '-'}
                 </div>
@@ -126,10 +126,10 @@ export default function MintPage() {
           <div className="bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl p-8 shadow-2xl space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <p className="text-xs text-white/70 uppercase tracking-[0.2em]">Mint ilimitado</p>
-                <h2 className="text-3xl font-bold text-white">Forja Aventureros</h2>
+                <p className="text-xs text-white/70 uppercase tracking-[0.2em]">Unlimited minting</p>
+                <h2 className="text-3xl font-bold text-white">Forge Adventurers</h2>
                 <p className="text-white/75 text-sm">
-                  Habilitamos minting ilimitado temporalmente: crea cuantas cartas quieras mientras dura la ventana.
+                  Unlimited minting is temporarily enabled: create as many cards as you want while the window stays open.
                 </p>
               </div>
               <Image
@@ -144,10 +144,10 @@ export default function MintPage() {
             <div className="h-px w-32 bg-gradient-to-r from-transparent via-purple-500/70 to-transparent my-6" />
 
             {!mounted ? (
-              <div className="text-center text-white/70 py-10">Cargando...</div>
+              <div className="text-center text-white/70 py-10">Loading...</div>
             ) : !isConnected ? (
               <div className="text-center py-10">
-                <p className="text-white/80 mb-4">Conecta tu wallet para mintear Aventureros.</p>
+                <p className="text-white/80 mb-4">Connect your wallet to mint Adventurers.</p>
                 <ConnectButton />
               </div>
             ) : (
@@ -156,11 +156,11 @@ export default function MintPage() {
                   <div className="bg-[#1b2f1b] border border-green-500/50 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <div className="rounded-lg bg-gradient-to-br from-green-500/30 to-emerald-500/40 border border-green-500/50 px-3 py-2 text-sm font-bold text-white">
-                        Mint listo
+                        Mint complete
                       </div>
                       <div className="flex-1">
                         <p className="text-sm text-white/80">
-                          Aventurero generado. Puedes seguir mintando o ir directo al juego.
+                          Adventurer generated. You can keep minting or jump straight into the game.
                         </p>
                         {mintedNFT && (
                           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
@@ -190,13 +190,13 @@ export default function MintPage() {
                         disabled={isMinting}
                         className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
                       >
-                        {isPending ? 'Confirma en wallet...' : isConfirming ? 'Minting...' : 'Mint otro'}
+                        {isPending ? 'Confirm in wallet...' : isConfirming ? 'Minting...' : 'Mint another'}
                       </button>
                       <Link
                         href="/game"
                         className="w-full inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition"
                       >
-                        Jugar ahora
+                        Play now
                       </Link>
                     </div>
                   </div>
@@ -204,7 +204,7 @@ export default function MintPage() {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4">
-                    <h4 className="font-bold text-white mb-3">Rangos de stats</h4>
+                    <h4 className="font-bold text-white mb-3">Stat ranges</h4>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div className="text-center">
                         <div className="text-white font-bold">ATK</div>
@@ -226,14 +226,14 @@ export default function MintPage() {
                       </div>
                     </div>
                     <p className="text-[11px] text-white/60 mt-3">
-                      Cada carta genera stats aleatorios dentro de estos rangos.
+                      Each card rolls random stats within these ranges.
                     </p>
                   </div>
 
                   {hasNFT && stats && firstTokenId !== undefined && (
                     <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-bold text-white">Tu Aventurero activo</h4>
+                        <h4 className="font-bold text-white">Your active Adventurer</h4>
                         <span className="text-sm text-white font-semibold">#{firstTokenId.toString()}</span>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-center">
@@ -252,7 +252,7 @@ export default function MintPage() {
                       </div>
                       {mintedClass && (
                         <div className="mt-3 text-xs text-white/70">
-                          Clase: <span className="font-semibold text-white">{mintedClass.name}</span> ·{' '}
+                          Class: <span className="font-semibold text-white">{mintedClass.name}</span> ·{' '}
                           {mintedClass.description}
                         </div>
                       )}
@@ -264,10 +264,10 @@ export default function MintPage() {
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
                       <p className="text-sm text-white/80 mb-1">
-                        Cada mint es gratis (solo gas). Mint ilimitado habilitado temporalmente.
+                        Each mint is free (gas only). Unlimited minting is temporarily enabled.
                       </p>
                       <p className="text-[11px] text-white/60">
-                        Recibirás un mensaje flotante con la clase del Aventurero al completar cada mint.
+                        You will receive a floating message with the Adventurer class after every mint.
                       </p>
                     </div>
                     <button
@@ -275,7 +275,7 @@ export default function MintPage() {
                       disabled={isMinting}
                       className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition"
                     >
-                      {isPending ? 'Confirma en wallet...' : isConfirming ? 'Minting...' : 'Mint Aventurero'}
+                      {isPending ? 'Confirm in wallet...' : isConfirming ? 'Minting...' : 'Mint Adventurer'}
                     </button>
                   </div>
                   {error && (
@@ -287,7 +287,7 @@ export default function MintPage() {
 
                 {!hasNFT && (
                   <div className="text-center text-sm text-white/70">
-                    Aún no tienes Aventureros. Aprovecha el mint ilimitado para probar diferentes builds.
+                    You do not have any Adventurers yet. Take advantage of unlimited minting to try different builds.
                   </div>
                 )}
               </div>
@@ -306,10 +306,10 @@ export default function MintPage() {
               #{mintedNFT.tokenId.toString()}
             </div>
             <div className="flex-1 space-y-1">
-              <p className="text-[11px] text-white/70 uppercase tracking-wide">Nuevo Aventurero</p>
-              <h4 className="text-xl font-bold text-white">{mintedClass?.name ?? 'Aventurero'}</h4>
+              <p className="text-[11px] text-white/70 uppercase tracking-wide">New Adventurer</p>
+              <h4 className="text-xl font-bold text-white">{mintedClass?.name ?? 'Adventurer'}</h4>
               <p className="text-xs text-white/70">
-                {mintedClass?.description ?? 'Consulta los stats para ver su clase.'}
+                {mintedClass?.description ?? 'Check the stats to learn the class.'}
               </p>
               <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
                 <div className="bg-[#16122c] border border-purple-700/70 rounded-md p-2">
@@ -332,7 +332,7 @@ export default function MintPage() {
               onClick={() => setToastOpen(false)}
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-lg shadow-inner"
             >
-              Aceptar
+              Close
             </button>
           </div>
         </div>

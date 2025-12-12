@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useWatchContractEvent, usePublicClient } from 'wagmi';
@@ -10,6 +11,7 @@ import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/us
 import { AdventureLog } from '@/components/AdventureLog';
 import { GameCard } from '@/components/GameCard';
 import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
+import { getAventurerClassWithCard } from '@/lib/aventurer';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 
 const STATUS_COPY: Record<RunStatus, string> = {
@@ -45,6 +47,23 @@ export default function GamePage() {
   } = useNFTOwnerTokens(address);
 
   const { data: stats } = useAventurerStats(tokenId);
+  const heroProfile = useMemo(() => getAventurerClassWithCard(stats), [stats]);
+  const statsTiles = stats ? (
+    <>
+      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+        <p className="text-xs text-gray-400">ATK</p>
+        <p className="text-2xl font-bold text-red-300">{stats.atk.toString()}</p>
+      </div>
+      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+        <p className="text-xs text-gray-400">DEF</p>
+        <p className="text-2xl font-bold text-blue-300">{stats.def.toString()}</p>
+      </div>
+      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
+        <p className="text-xs text-gray-400">Max HP</p>
+        <p className="text-2xl font-bold text-green-300">{stats.hp.toString()}</p>
+      </div>
+    </>
+  ) : null;
   const {
     data: runState,
     refetch: refetchRun,
@@ -524,21 +543,30 @@ export default function GamePage() {
                     </div>
                   </div>
 
-                  {stats && (
-                    <div className="grid md:grid-cols-3 gap-4 text-center">
-                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
-                        <p className="text-xs text-gray-400">ATK</p>
-                        <p className="text-2xl font-bold text-red-300">{stats.atk.toString()}</p>
+                  {stats && heroProfile?.cardImage ? (
+                    <div className="grid gap-4 items-start md:[grid-template-columns:280px_1fr]">
+                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-4 flex flex-col items-center text-center">
+                        <Image
+                          src={heroProfile.cardImage}
+                          alt={`Card of ${heroProfile.name}`}
+                          width={320}
+                          height={448}
+                          className="w-full max-w-[260px] h-auto rounded-lg shadow-lg shadow-purple-900/50"
+                          priority
+                        />
+                        <p className="mt-4 text-lg font-semibold text-gray-100">{heroProfile.name}</p>
+                        <p className="text-sm text-gray-400">{heroProfile.description}</p>
                       </div>
-                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
-                        <p className="text-xs text-gray-400">DEF</p>
-                        <p className="text-2xl font-bold text-blue-300">{stats.def.toString()}</p>
-                      </div>
-                      <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
-                        <p className="text-xs text-gray-400">Max HP</p>
-                        <p className="text-2xl font-bold text-green-300">{stats.hp.toString()}</p>
+                      <div className="grid gap-4 text-center sm:grid-cols-2 md:grid-cols-3">
+                        {statsTiles}
                       </div>
                     </div>
+                  ) : (
+                    stats && (
+                      <div className="grid md:grid-cols-3 gap-4 text-center">
+                        {statsTiles}
+                      </div>
+                    )
                   )}
 
                   <div className="grid md:grid-cols-2 gap-4">
