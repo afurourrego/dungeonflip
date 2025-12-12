@@ -526,6 +526,115 @@ Please help me understand the current state and guide me on what to work on next
 3. Add your specific question or task at the end
 4. The AI will have full context to help you effectively
 
-**Total Prompts Documented:** 7 (6 detailed + 1 template + 1 onboarding)  
-**Last Updated:** December 4, 2025  
-**Status:** ✅ Frontend Complete with Enhanced Visuals - Ready for Testing & Deployment
+---
+
+### Prompt 8: Border Color Issues - Purple and Bright Yellow
+**Date:** 2025-12-12
+**Tool:** Claude Code
+**Context:** User reported ugly bright yellow borders on adventurer card and purple borders remaining on game cards
+
+**Prompt:**
+```
+por cierto, cuando el aventurero carda, aun tiene unos brdes amarillos laros feos, y en la card de tarjetas, las tarjetas tienen un contorno morado
+```
+
+**Response Summary:**
+- Identified `border-dungeon-border-light` (#e8c547) as too bright on adventurer card
+- Found remaining purple borders in GameCard.tsx component
+- Fixed adventurer card border: Changed to `border-dungeon-border-gold` (#d4af37)
+- Fixed GameCard borders: Replaced all purple references with dungeon-border-gold
+- Updated hover shadows from purple to gold
+
+**Iteration:** 1
+**Outcome:** ✅ Success - All border colors fixed
+**Files Modified:**
+- frontend/app/game/page.tsx (line 599)
+- frontend/components/GameCard.tsx (lines 62, 77, 117)
+
+**Learning:**
+- Mid-tone gold (#d4af37) more elegant than bright gold (#e8c547)
+- Need to check all components for theme color remnants
+- User feedback critical for visual polish
+
+---
+
+### Prompt 9: Grey Stone Theme Experimentation
+**Date:** 2025-12-12
+**Tool:** Claude Code
+**Context:** User wanted to try grey/black stone color scheme as alternative to golden theme
+
+**Prompt:**
+```
+sabes que, me gustaria que cambiaras los tonos a grises y negros como si fuera piedra, para elegir
+```
+
+**Response Summary:**
+- Updated tailwind.config.js with grey palette (#0a0a0a to #454545)
+- Changed accent colors to silver tones (#c0c0c0 to #606060)
+- Updated globals.css classes (.card, .royal-board) with grey gradients
+- User initially couldn't see changes on game page
+- Updated CSS classes to show grey gradients
+- User feedback: "no, es muy aburrido el gris, mejor le color anterior"
+- Reverted ALL changes back to golden/brown theme
+
+**Iteration:** 2 (initial change + visibility fix + revert)
+**Outcome:** ⚠️ Partial - Theme applied successfully but rejected by user
+**Files Modified:**
+- frontend/tailwind.config.js (updated twice: grey → reverted to golden)
+- frontend/app/globals.css (updated twice: grey → reverted to golden)
+
+**Learning:**
+- Grey/stone theme too boring for fantasy dungeon game
+- Always implement theme changes in BOTH Tailwind config AND CSS classes
+- Quick experimentation valuable for design decisions
+- User preference critical - technical success doesn't equal design success
+
+---
+
+### Prompt 10: Site-Wide Color Palette Application
+**Date:** 2025-12-12
+**Tool:** Claude Code + Task agents (parallel execution)
+**Context:** Apply consistent dungeon color palette across all remaining pages and Header component
+
+**Prompt:**
+```
+listo, actualiza toda la paleta de colores del resto de paginas dle sitio web, no olvides el header y cuando termines actualiza los ai_logs que hace mucho no lo haces
+```
+
+**Response Summary:**
+- Used Task tool to apply colors in parallel to 4 pages:
+  - Mint page: 23 color replacements (purple → dungeon colors)
+  - NFTs page: 28 color replacements (filter buttons, selected cards)
+  - Leaderboard page: 15 color replacements (cards, prize display)
+  - Landing page: 18 color replacements (hero, features, guide)
+- Manually updated Header component with dungeon colors:
+  - Logo gradient: gold to amber
+  - Weekly runs counter with `.run-counter` class
+  - Navigation links with gold active state
+  - Mobile menu gradient
+- Updated AI logs (iteration_history.md and prompts.md)
+- Total: 84+ color replacements across 9 files
+
+**Iteration:** 1
+**Outcome:** ✅ Success - Complete site-wide color consistency
+**Files Modified:**
+- frontend/app/mint/page.tsx
+- frontend/app/nfts/page.tsx
+- frontend/app/leaderboard/page.tsx
+- frontend/app/page.tsx
+- frontend/components/Header.tsx
+- ai_logs/iteration_history.md
+- ai_logs/prompts.md
+
+**Learning:**
+- Task tool with parallel execution extremely efficient for bulk updates
+- Manual review of Header component necessary for quality
+- Documenting work in AI logs provides valuable project history
+- Consistent color palette creates professional, cohesive UI
+- User reminder about documentation important for hackathon requirements
+
+---
+
+**Total Prompts Documented:** 10 (9 detailed + 1 template + 1 onboarding)
+**Last Updated:** December 12, 2025
+**Status:** ✅ UI Polished with Dungeon Color Palette - Ready for Testing & Deployment

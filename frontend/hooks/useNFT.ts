@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { CONTRACTS } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
@@ -101,10 +101,12 @@ export function useNFTBalance(address?: `0x${string}`) {
 
 /**
  * Hook to find the active tokenId for a wallet.
- * Uses the new activeTokenByWallet mapping in the contract for instant lookup.
- * Falls back to scanning wallet ownership if no active token.
+ * Priority order:
+ * 1. Active token in dungeon (from contract)
+ * 2. User-selected token (from localStorage)
+ * 3. First owned token (fallback)
  */
-export function useNFTOwnerTokens(address?: `0x${string}`) {
+export function useNFTOwnerTokens(address?: `0x${string}`, selectedTokenId?: bigint | null, ownedTokenIds?: bigint[], staticMode: boolean = false) {
   const publicClient = usePublicClient();
   const { data: totalSupply } = useTotalSupply();
 
@@ -116,12 +118,12 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
     args: address ? [address] : undefined,
     query: {
       enabled: !!address,
-      staleTime: 2000, // Refresh very frequently
-      refetchInterval: 3000, // Auto-refetch every 3 seconds
+      staleTime: staticMode ? Infinity : 2000, // In static mode, never refetch
+      refetchInterval: staticMode ? false : 3000, // In static mode, disable auto-refetch
     },
   });
 
-  const [ownedTokens, setOwnedTokens] = useState<bigint[]>([]);
+  const [internalOwnedTokens, setInternalOwnedTokens] = useState<bigint[]>([]);
   const [enumerationSupported, setEnumerationSupported] = useState(true);
 
   const [walletTokenId, setWalletTokenId] = useState<bigint | undefined>(undefined);
@@ -132,9 +134,12 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
   const activeTokenBigInt = activeToken as bigint | undefined;
   const hasActiveToken = activeTokenBigInt !== undefined && activeTokenBigInt > BigInt(0);
 
-  // Try enumerating tokensOfOwner if supported
+  // Use provided ownedTokenIds if available, otherwise use internal state
+  const ownedTokens = ownedTokenIds && ownedTokenIds.length > 0 ? ownedTokenIds : internalOwnedTokens;
+
+  // Try enumerating tokensOfOwner if supported (only if not provided externally)
   useEffect(() => {
-    if (!address || !publicClient || hasActiveToken) {
+    if (!address || !publicClient || hasActiveToken || (ownedTokenIds && ownedTokenIds.length > 0)) {
       return;
     }
     let cancelled = false;
@@ -149,12 +154,12 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
         })) as bigint[];
         if (cancelled) return;
         setEnumerationSupported(true);
-        setOwnedTokens(tokens);
+        setInternalOwnedTokens(tokens);
       } catch (err) {
         if (cancelled) return;
         // tokensOfOwner not supported or reverted; fall back to scan
         setEnumerationSupported(false);
-        setOwnedTokens([]);
+        setInternalOwnedTokens([]);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -163,7 +168,7 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
     return () => {
       cancelled = true;
     };
-  }, [address, publicClient, hasActiveToken]);
+  }, [address, publicClient, hasActiveToken, ownedTokenIds]);
 
   // If enumeration unsupported, fall back to limited scan
   useEffect(() => {
@@ -228,14 +233,25 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
     }
   }, [activeError]);
 
-  // Final tokenId: prefer active token, fallback to wallet token
-  const tokenId = hasActiveToken ? activeTokenBigInt : walletTokenId;
+  // Validate that selected token is actually owned
+  const isSelectedValid =
+    selectedTokenId &&
+    selectedTokenId > BigInt(0) &&
+    ownedTokens.length > 0 &&
+    ownedTokens.includes(selectedTokenId);
+
+  // Final tokenId priority: active token > selected token (if valid) > wallet token
+  const tokenId = hasActiveToken
+    ? activeTokenBigInt
+    : isSelectedValid
+      ? selectedTokenId
+      : walletTokenId;
 
   const refetch = useCallback(async () => {
     const result = await refetchActiveToken();
     if (!result.data || (result.data as bigint) === BigInt(0)) {
       // Trigger re-load of owned tokens path
-      setOwnedTokens([]);
+      setInternalOwnedTokens([]);
     }
   }, [refetchActiveToken]);
 
@@ -247,7 +263,7 @@ export function useNFTOwnerTokens(address?: `0x${string}`) {
   };
 }
 
-export function useAventurerStats(tokenId?: bigint) {
+export function useAventurerStats(tokenId?: bigint, staticMode: boolean = false) {
   return useReadContract({
     address: CONTRACTS.AVENTURER_NFT,
     abi: AventurerNFTABI.abi,
@@ -255,7 +271,8 @@ export function useAventurerStats(tokenId?: bigint) {
     args: tokenId !== undefined ? [tokenId] : undefined,
     query: {
       enabled: tokenId !== undefined,
-      staleTime: 300000, // Cache for 5 minutes (stats don't change)
+      staleTime: staticMode ? Infinity : 300000, // In static mode, never refetch
+      refetchInterval: false, // Never auto-refetch (stats don't change)
     },
   }) as { data: AventurerStats | undefined; isLoading: boolean; error: Error | null };
 }
@@ -279,7 +296,8 @@ export function useWalletNFTs(address?: `0x${string}`) {
   const [error, setError] = useState<Error | null>(null);
 
   const [enumerationSupported, setEnumerationSupported] = useState(true);
-  const [ownedTokens, setOwnedTokens] = useState<bigint[]>([]);
+  const ownedTokensRef = useRef<bigint[]>([]);
+  const [shouldRefetch, setShouldRefetch] = useState(0);
 
   const fetchNFTs = useCallback(async () => {
     if (!address || !publicClient) {
@@ -292,7 +310,7 @@ export function useWalletNFTs(address?: `0x${string}`) {
     setError(null);
 
     try {
-      let ownedTokenIds = ownedTokens;
+      let ownedTokenIds = ownedTokensRef.current;
 
       // If we don't have enumeration, fall back to a limited scan
       if (!enumerationSupported) {
@@ -348,7 +366,7 @@ export function useWalletNFTs(address?: `0x${string}`) {
     } finally {
       setIsLoading(false);
     }
-  }, [address, publicClient, ownedTokens, enumerationSupported, totalSupply]);
+  }, [address, publicClient, enumerationSupported, totalSupply]);
 
   // Load owned tokens via tokensOfOwner if supported
   useEffect(() => {
@@ -364,11 +382,13 @@ export function useWalletNFTs(address?: `0x${string}`) {
         })) as bigint[];
         if (cancelled) return;
         setEnumerationSupported(true);
-        setOwnedTokens(tokens);
+        ownedTokensRef.current = tokens;
+        setShouldRefetch(prev => prev + 1);
       } catch (err) {
         if (cancelled) return;
         setEnumerationSupported(false);
-        setOwnedTokens([]);
+        ownedTokensRef.current = [];
+        setShouldRefetch(prev => prev + 1);
       }
     };
     load();
@@ -379,14 +399,14 @@ export function useWalletNFTs(address?: `0x${string}`) {
 
   useEffect(() => {
     fetchNFTs();
-  }, [fetchNFTs]);
+  }, [fetchNFTs, shouldRefetch]);
 
   return {
     data,
     isLoading,
     error,
     refresh: async () => {
-      await fetchNFTs();
+      setShouldRefetch(prev => prev + 1);
     },
   };
 }

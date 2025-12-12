@@ -152,6 +152,18 @@
     100% { transform: translateX(120%); }
   }
 
+  /* Particle burst animation for card reveals */
+  @keyframes particleBurst {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--distance)) scale(0.5);
+    }
+  }
+
   .run-counter-shine {
     position: absolute;
     inset: 0;
@@ -252,7 +264,7 @@
     @apply relative overflow-hidden rounded-lg;
     background: linear-gradient(135deg, rgba(26, 6, 8, 0.95) 0%, rgba(35, 8, 10, 0.98) 100%);
     border: 2px solid rgba(217, 119, 6, 0.4);
-    box-shadow: 
+    box-shadow:
       0 4px 16px rgba(0, 0, 0, 0.6),
       inset 0 0 16px rgba(0, 0, 0, 0.4);
   }

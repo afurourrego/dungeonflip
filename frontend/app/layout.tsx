@@ -30,10 +30,21 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${pressStart.variable} ${shareTech.variable} antialiased min-h-screen`}
+        className={`${pressStart.variable} ${shareTech.variable} antialiased min-h-screen relative`}
         style={{ fontFamily: 'var(--font-press-start)' }}
       >
-        <Web3Provider>{children}</Web3Provider>
+        {/* Background Image */}
+        <div
+          className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: 'url(/background/dungeon.png)',
+            backgroundAttachment: 'fixed'
+          }}
+        />
+        {/* Content */}
+        <div className="relative z-10">
+          <Web3Provider>{children}</Web3Provider>
+        </div>
       </body>
     </html>
   );
