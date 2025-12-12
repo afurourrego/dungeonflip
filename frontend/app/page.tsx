@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useTotalSupply } from '@/hooks/useNFT';
 import { GAME_CONFIG, PRIZE_DISTRIBUTION } from '@/lib/constants';
+import { Header } from '@/components/Header';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 export default function Home() {
   const { address, isConnected } = useAccount();
@@ -19,38 +20,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen text-white relative">
-      <header className="border-b border-purple-700/40 backdrop-blur-md bg-black/90 relative z-20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="grid grid-cols-3 items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 justify-start">
-              <span className="text-3xl drop-shadow-lg">⚔</span>
-              <div>
-                <h1 className="text-2xl font-bold text-white">DungeonFlip</h1>
-                <div className="text-[10px] text-white/60 -mt-1">Base Sepolia</div>
-              </div>
-            </Link>
-
-            <div className="flex justify-center">
-              <div className="run-counter relative bg-[#18132f] border border-purple-500/70 shadow-lg">
-                <div className="text-xs text-white/70 uppercase tracking-wider mb-1">Total Aventurers</div>
-                <div className="text-3xl font-bold dot-matrix text-white">
-                  {mounted ? (totalSupply ? totalSupply.toString() : '0') : '—'}
-                </div>
-              </div>
-            </div>
-
-            <nav className="flex items-center gap-4 justify-end">
-              <Link href="/nfts" className="text-white/80 hover:text-white transition font-medium">
-                NFTs
-              </Link>
-              <Link href="/leaderboard" className="text-white/80 hover:text-white transition font-medium">
-                Leaderboard
-              </Link>
-            </nav>
-            <ConnectButton />
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-12 relative z-10 space-y-10">
         <div className="grid lg:grid-cols-2 gap-8 items-start">

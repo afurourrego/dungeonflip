@@ -13,6 +13,7 @@ import { GameCard } from '@/components/GameCard';
 import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
 import { getAventurerClassWithCard } from '@/lib/aventurer';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
+import { Header } from '@/components/Header';
 
 const STATUS_COPY: Record<RunStatus, string> = {
   [RunStatus.Idle]: 'Idle',
@@ -438,29 +439,7 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen text-white">
-      <header className="border-b border-purple-500/30 backdrop-blur-sm sticky top-0 z-20">
-        <div className="container mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-3xl font-bold">DF</span>
-            <div>
-              <h1 className="text-2xl font-bold">DungeonFlip</h1>
-              <p className="text-xs text-purple-200/70">Base Sepolia</p>
-            </div>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/" className="hover:text-purple-300 transition">
-              Home
-            </Link>
-            <Link href="/nfts" className="hover:text-purple-300 transition">
-              Adventurers
-            </Link>
-            <Link href="/leaderboard" className="hover:text-purple-300 transition">
-              Leaderboard
-            </Link>
-            <ConnectButton />
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-10">
         <div className="grid lg:grid-cols-3 gap-6">
