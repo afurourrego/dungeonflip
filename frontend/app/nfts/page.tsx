@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { AventurerStats, WalletNFT, useWalletNFTs } from '@/hooks/useNFT';
-import { getAventurerClass } from '@/lib/aventurer';
+import { getAventurerClassWithCard } from '@/lib/aventurer';
 import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK, NETWORKS } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
@@ -272,7 +272,7 @@ export default function NFTsPage() {
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {displayList.map((nft) => {
-                    const nftClass = getAventurerClass(nft.stats);
+                    const nftClass = getAventurerClassWithCard(nft.stats);
                     const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
                     return (
                       <div
@@ -298,7 +298,13 @@ export default function NFTsPage() {
                               </span>
                             )}
                           </div>
-                          <Image src="/avatars/adventurer-idle.png" alt="Aventurer" width={64} height={64} />
+                          <Image
+                            src={nftClass?.cardImage ?? '/avatars/adventurer-idle.png'}
+                            alt={nftClass ? `${nftClass.name} card art` : 'Aventurer'}
+                            width={80}
+                            height={128}
+                            className="rounded-md border border-purple-700/40"
+                          />
                         </div>
 
                         <div className="grid grid-cols-3 gap-3 text-center">
