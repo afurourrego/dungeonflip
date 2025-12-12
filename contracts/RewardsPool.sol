@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
 interface IFeeDistributor {
     function withdrawRewardsPool(address to) external returns (uint256);
+    function rewardsPoolBalance() external view returns (uint256);
 }
 
 /**
@@ -226,7 +227,11 @@ contract RewardsPool is Ownable, Pausable {
      * @return Local balance in this contract
      */
     function getCurrentPoolBalance() external view returns (uint256) {
-        return address(this).balance;
+        uint256 localBalance = address(this).balance;
+        if (address(feeDistributor) == address(0)) {
+            return localBalance;
+        }
+        return localBalance + feeDistributor.rewardsPoolBalance();
     }
     
     /**
@@ -268,6 +273,9 @@ contract RewardsPool is Ownable, Pausable {
      */
     function getExpectedPrizes() external view returns (uint256[10] memory prizes) {
         uint256 balance = address(this).balance;
+        if (address(feeDistributor) != address(0)) {
+            balance += feeDistributor.rewardsPoolBalance();
+        }
         
         for (uint256 i = 0; i < 10; i++) {
             prizes[i] = (balance * PRIZE_PERCENTAGES[i]) / 100;

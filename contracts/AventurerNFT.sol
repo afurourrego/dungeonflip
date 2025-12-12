@@ -231,7 +231,7 @@ contract AventurerNFT is ERC721Enumerable, Ownable, Pausable {
     /**
      * @dev Resolve multiple inheritance for supportsInterface.
      */
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721Enumerable, ERC721) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721Enumerable) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
     

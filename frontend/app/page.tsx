@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAccount } from 'wagmi';
 import { useNFTBalance, useTotalSupply } from '@/hooks/useNFT';
 import { GAME_CONFIG, PRIZE_DISTRIBUTION } from '@/lib/constants';
+import { usePrizePool } from '@/hooks/usePrizePool';
 import { Header } from '@/components/Header';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
@@ -12,6 +13,7 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { data: nftBalance } = useNFTBalance(address);
   const { data: totalSupply } = useTotalSupply();
+  const { totalEth: prizePoolEth, isLoading: isLoadingPrizePool } = usePrizePool();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -123,7 +125,9 @@ export default function Home() {
 
           <div className="bg-dungeon-bg-darker rounded-lg p-6 mb-6 border border-amber-600/60">
             <div className="text-sm text-white/70 mb-2">Current Prize Pool</div>
-            <div className="text-5xl font-bold text-white dot-matrix mb-2">ETH {GAME_CONFIG.ENTRY_FEE}</div>
+            <div className="text-5xl font-bold text-white dot-matrix mb-2">
+              {mounted && !isLoadingPrizePool ? `ETH ${prizePoolEth}` : '—'}
+            </div>
             <div className="text-xs text-white/60">70% of all entry fees</div>
           </div>
 
