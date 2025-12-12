@@ -11,6 +11,31 @@ module.exports = {
     extend: {
       colors: {
         dungeon: {
+          // Rich gradient backgrounds (dark to slightly lighter)
+          bg: {
+            darkest: '#1a0f08',    // Deep brown
+            darker: '#2d1b10',     // Rich dark brown
+            dark: '#3d2415',       // Medium brown
+            medium: '#4a2f1a',     // Lighter brown
+            light: '#5a3b22',      // Card highlight
+          },
+          // Vibrant golden/amber accents
+          accent: {
+            gold: '#ffd700',       // Bright gold
+            amber: '#ffb347',      // Vibrant amber
+            orange: '#ff8c42',     // Bright orange
+            bronze: '#cd7f32',     // Rich bronze
+            copper: '#b87333',     // Deep copper
+          },
+          // Glowing golden borders
+          border: {
+            gold: '#d4af37',       // Golden border (main)
+            light: '#e8c547',      // Light gold glow
+            medium: '#b8860b',     // Dark goldenrod
+            dark: '#8b6914',       // Darker gold
+            shadow: '#6b5416',     // Deep shadow gold
+          },
+          // Legacy colors (keep for compatibility)
           dark: '#1a1625',
           purple: '#6b46c1',
           gold: '#fbbf24',

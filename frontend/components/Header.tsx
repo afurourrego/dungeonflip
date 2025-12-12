@@ -28,7 +28,7 @@ export function Header() {
   return (
     <>
       {/* Desktop & Mobile Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-purple-700/40 backdrop-blur-md bg-black/90">
+      <header className="sticky top-0 z-50 w-full border-b border-amber-600/40 backdrop-blur-md bg-black/90">
         <nav className="container mx-auto px-4">
           {/* Desktop Layout: Flexbox to avoid overlap */}
           <div className="hidden md:flex items-center justify-between gap-4 py-4">
@@ -36,7 +36,7 @@ export function Header() {
             <Link href="/" className="flex items-center gap-2 shrink-0">
               <span className="text-3xl">⚔️</span>
               <div className="flex flex-col">
-                <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+                <span className="text-xl font-bold bg-gradient-to-r from-dungeon-accent-gold to-dungeon-accent-amber bg-clip-text text-transparent">
                   DungeonFlip
                 </span>
                 <span className="text-xs text-gray-400">Base Sepolia</span>
@@ -45,10 +45,10 @@ export function Header() {
 
             {/* Center: Weekly Runs Counter */}
             <div className="flex justify-center shrink-0">
-              <div className="px-6 py-2 rounded-lg border border-purple-600/40 bg-purple-900/20">
+              <div className="run-counter">
                 <div className="flex flex-col items-center">
-                  <span className="text-xs text-gray-400">Runs This Week</span>
-                  <span className="text-lg font-bold text-purple-300">
+                  <span className="text-xs text-amber-300/70">Runs This Week</span>
+                  <span className="text-lg font-bold text-dungeon-accent-gold">
                     {isLoading ? '...' : weeklyRuns}
                   </span>
                 </div>
@@ -61,9 +61,9 @@ export function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`text-sm font-medium transition-colors hover:text-purple-400 whitespace-nowrap ${
+                  className={`text-sm font-medium transition-colors hover:text-dungeon-accent-gold whitespace-nowrap ${
                     isActive(link.href)
-                      ? 'text-purple-400 border-b-2 border-purple-400 pb-1'
+                      ? 'text-dungeon-accent-gold border-b-2 border-dungeon-accent-gold pb-1'
                       : 'text-gray-300'
                   }`}
                 >
@@ -80,7 +80,7 @@ export function Header() {
             <Link href="/" className="flex items-center gap-2">
               <span className="text-2xl">⚔️</span>
               <div className="flex flex-col">
-                <span className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
+                <span className="text-lg font-bold bg-gradient-to-r from-dungeon-accent-gold to-dungeon-accent-amber bg-clip-text text-transparent">
                   DungeonFlip
                 </span>
                 <span className="text-xs text-gray-400">Base Sepolia</span>
@@ -92,7 +92,7 @@ export function Header() {
               <ConnectButton />
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 text-gray-300 hover:text-purple-400 transition-colors"
+                className="p-2 text-gray-300 hover:text-dungeon-accent-gold transition-colors"
                 aria-label="Toggle menu"
               >
                 <svg
@@ -123,10 +123,10 @@ export function Header() {
 
           {/* Mobile: Weekly Runs Counter (below header) */}
           <div className="md:hidden pb-3">
-            <div className="px-4 py-2 rounded-lg border border-purple-600/40 bg-purple-900/20">
+            <div className="px-4 py-2 rounded-lg border border-amber-600/40 bg-dungeon-bg-darker/60">
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-gray-400">Runs This Week:</span>
-                <span className="text-sm font-bold text-purple-300">
+                <span className="text-xs text-amber-300/70">Runs This Week:</span>
+                <span className="text-sm font-bold text-dungeon-accent-gold">
                   {isLoading ? '...' : weeklyRuns}
                 </span>
               </div>
@@ -145,12 +145,12 @@ export function Header() {
           />
 
           {/* Slide-out Menu */}
-          <div className="fixed top-0 right-0 h-full w-64 bg-gradient-to-b from-purple-900/95 to-black/95 backdrop-blur-md border-l border-purple-700/40 z-50 md:hidden shadow-2xl">
+          <div className="fixed top-0 right-0 h-full w-64 bg-gradient-to-b from-dungeon-bg-dark/95 to-black/95 backdrop-blur-md border-l border-amber-600/40 z-50 md:hidden shadow-2xl">
             {/* Close Button */}
             <div className="flex justify-end p-4">
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 text-gray-300 hover:text-purple-400 transition-colors"
+                className="p-2 text-gray-300 hover:text-dungeon-accent-gold transition-colors"
                 aria-label="Close menu"
               >
                 <svg
@@ -178,8 +178,8 @@ export function Header() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={`px-4 py-3 rounded-lg text-base font-medium transition-all ${
                     isActive(link.href)
-                      ? 'bg-purple-600/40 text-purple-300 border border-purple-500/50'
-                      : 'text-gray-300 hover:bg-purple-900/30 hover:text-purple-400'
+                      ? 'bg-dungeon-accent-bronze/40 text-dungeon-accent-gold border border-amber-500/50'
+                      : 'text-gray-300 hover:bg-dungeon-bg-darker/60 hover:text-dungeon-accent-gold'
                   }`}
                 >
                   {link.label}

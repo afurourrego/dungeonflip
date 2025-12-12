@@ -22,7 +22,7 @@ export default function MintPage() {
   const { address, isConnected } = useAccount();
   const { mintAventurer, isPending, isConfirming, isConfirmed, error, receipt } = useNFT();
   const { data: nftBalance, refetch: refetchBalance } = useNFTBalance(address);
-  const { data: firstTokenId, refetch: refetchTokenId } = useNFTOwnerTokens(address);
+  const { data: firstTokenId, refetch: refetchTokenId } = useNFTOwnerTokens(address, undefined);
   const { data: stats } = useAventurerStats(firstTokenId);
 
   const [mounted, setMounted] = useState(false);
@@ -93,7 +93,7 @@ export default function MintPage() {
 
       <main className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-[#0e0b1f]/90 border border-purple-700/60 rounded-2xl p-8 shadow-2xl space-y-4">
+          <div className="card rounded-2xl p-8 shadow-2xl space-y-4">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <p className="text-xs text-white/70 uppercase tracking-[0.2em]">Unlimited minting</p>
@@ -111,7 +111,7 @@ export default function MintPage() {
               />
             </div>
 
-            <div className="h-px w-32 bg-gradient-to-r from-transparent via-purple-500/70 to-transparent my-6" />
+            <div className="h-px w-32 bg-gradient-to-r from-transparent via-amber-600/70 to-transparent my-6" />
 
             {!mounted ? (
               <div className="text-center text-white/70 py-10">Loading...</div>
@@ -134,19 +134,19 @@ export default function MintPage() {
                         </p>
                         {mintedNFT && (
                           <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                            <div className="rounded-lg bg-[#16122c] border border-purple-700/60 p-2">
+                            <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/60 p-2">
                               <p className="text-[10px] text-white/70 uppercase">Token</p>
                               <p className="text-xl font-bold text-white">#{mintedNFT.tokenId.toString()}</p>
                             </div>
-                            <div className="rounded-lg bg-[#16122c] border border-purple-700/60 p-2">
+                            <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/60 p-2">
                               <p className="text-[10px] text-white/70 uppercase">ATK</p>
                               <p className="text-xl font-bold text-white">{mintedNFT.stats.atk.toString()}</p>
                             </div>
-                            <div className="rounded-lg bg-[#16122c] border border-purple-700/60 p-2">
+                            <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/60 p-2">
                               <p className="text-[10px] text-white/70 uppercase">DEF</p>
                               <p className="text-xl font-bold text-white">{mintedNFT.stats.def.toString()}</p>
                             </div>
-                            <div className="rounded-lg bg-[#16122c] border border-purple-700/60 p-2">
+                            <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/60 p-2">
                               <p className="text-[10px] text-white/70 uppercase">HP</p>
                               <p className="text-xl font-bold text-white">{mintedNFT.stats.hp.toString()}</p>
                             </div>
@@ -158,7 +158,7 @@ export default function MintPage() {
                       <button
                         onClick={() => mintAventurer()}
                         disabled={isMinting}
-                        className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
+                        className="w-full bg-gradient-to-r from-dungeon-accent-gold to-dungeon-accent-amber hover:bg-dungeon-accent-gold disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
                       >
                         {isPending ? 'Confirm in wallet...' : isConfirming ? 'Minting...' : 'Mint another'}
                       </button>
@@ -173,7 +173,7 @@ export default function MintPage() {
                 )}
 
                 <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4">
+                  <div className="bg-dungeon-bg-darker border border-amber-600/60 rounded-lg p-4">
                     <h4 className="font-bold text-white mb-3">Stat ranges</h4>
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div className="text-center">
@@ -201,7 +201,7 @@ export default function MintPage() {
                   </div>
 
                   {hasNFT && stats && firstTokenId !== undefined && (
-                    <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4">
+                    <div className="bg-dungeon-bg-darker border border-amber-600/60 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-bold text-white">Your active Adventurer</h4>
                         <span className="text-sm text-white font-semibold">#{firstTokenId.toString()}</span>
@@ -230,7 +230,7 @@ export default function MintPage() {
                   )}
                 </div>
 
-                <div className="bg-[#16122c] border border-purple-700/60 rounded-lg p-4">
+                <div className="bg-dungeon-bg-darker border border-amber-600/60 rounded-lg p-4">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div>
                       <p className="text-sm text-white/80 mb-1">
@@ -243,7 +243,7 @@ export default function MintPage() {
                     <button
                       onClick={() => mintAventurer()}
                       disabled={isMinting}
-                      className="w-full md:w-auto bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition"
+                      className="w-full md:w-auto bg-gradient-to-r from-dungeon-accent-gold to-dungeon-accent-amber hover:bg-dungeon-accent-gold disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition"
                     >
                       {isPending ? 'Confirm in wallet...' : isConfirming ? 'Minting...' : 'Mint Adventurer'}
                     </button>
@@ -268,11 +268,11 @@ export default function MintPage() {
 
       {mintedNFT && toastOpen && (
         <div
-          className="fixed bottom-6 right-6 max-w-md w-[90vw] sm:w-96 bg-[#0f0c1f] border-2 border-purple-700/70 rounded-xl shadow-2xl z-30"
+          className="fixed bottom-6 right-6 max-w-md w-[90vw] sm:w-96 card border-2 border-dungeon-border-gold/70 rounded-xl shadow-2xl z-30"
           style={{ animation: 'slideUp 0.25s ease-out' }}
         >
           <div className="p-4 flex gap-3">
-            <div className="min-w-[64px] h-16 rounded-lg bg-[#16122c] border border-purple-700/70 flex items-center justify-center text-xl font-bold text-white">
+            <div className="min-w-[64px] h-16 rounded-lg bg-dungeon-bg-darker border border-dungeon-border-gold/70 flex items-center justify-center text-xl font-bold text-white">
               #{mintedNFT.tokenId.toString()}
             </div>
             <div className="flex-1 space-y-1">
@@ -282,25 +282,25 @@ export default function MintPage() {
                 {mintedClass?.description ?? 'Check the stats to learn the class.'}
               </p>
               <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
-                <div className="bg-[#16122c] border border-purple-700/70 rounded-md p-2">
+                <div className="bg-dungeon-bg-darker border border-dungeon-border-gold/70 rounded-md p-2">
                   <p className="text-[10px] text-white/70 uppercase">ATK</p>
                   <p className="text-lg font-bold text-white">{mintedNFT.stats.atk.toString()}</p>
                 </div>
-                <div className="bg-[#16122c] border border-purple-700/70 rounded-md p-2">
+                <div className="bg-dungeon-bg-darker border border-dungeon-border-gold/70 rounded-md p-2">
                   <p className="text-[10px] text-white/70 uppercase">DEF</p>
                   <p className="text-lg font-bold text-white">{mintedNFT.stats.def.toString()}</p>
                 </div>
-                <div className="bg-[#16122c] border border-purple-700/70 rounded-md p-2">
+                <div className="bg-dungeon-bg-darker border border-dungeon-border-gold/70 rounded-md p-2">
                   <p className="text-[10px] text-white/70 uppercase">HP</p>
                   <p className="text-lg font-bold text-white">{mintedNFT.stats.hp.toString()}</p>
                 </div>
               </div>
             </div>
           </div>
-          <div className="border-t border-purple-700/70 px-4 py-3 flex justify-end">
+          <div className="border-t border-dungeon-border-gold/70 px-4 py-3 flex justify-end">
             <button
               onClick={() => setToastOpen(false)}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-lg shadow-inner"
+              className="bg-gradient-to-r from-dungeon-accent-gold to-dungeon-accent-amber hover:bg-dungeon-accent-gold text-white font-bold px-4 py-2 rounded-lg shadow-inner"
             >
               Close
             </button>
