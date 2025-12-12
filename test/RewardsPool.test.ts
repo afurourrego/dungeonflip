@@ -268,6 +268,9 @@ describe("RewardsPool", function () {
         value: ethers.parseEther("0.011") 
       });
       
+      // Pool getter includes pending balance held in FeeDistributor
+      expect(await rewardsPool.getCurrentPoolBalance()).to.be.gt(0);
+
       await rewardsPool.connect(progressTracker).distributeRewards(playerAddresses);
       
       // Contract balance should be zero (all distributed including dust)
@@ -281,8 +284,8 @@ describe("RewardsPool", function () {
       
       await feeDistributor.connect(gameContract).distributeEntryFee({ value: ENTRY_FEE });
       
-      // Balance is still in fee distributor until withdrawn
-      expect(await rewardsPool.getCurrentPoolBalance()).to.equal(0);
+      // Getter includes pending balance held in fee distributor
+      expect(await rewardsPool.getCurrentPoolBalance()).to.equal(ethers.parseEther("0.000007"));
     });
 
     it("Should check if week can be advanced", async function () {
@@ -303,16 +306,16 @@ describe("RewardsPool", function () {
     });
 
     it("Should return expected prizes", async function () {
-      // getExpectedPrizes() returns prizes based on RewardsPool's current balance
-      // In normal operation, RewardsPool balance is 0 until distributeRewards() is called
-      // So we check with 0 balance (expected behavior)
+      // getExpectedPrizes() returns prizes based on RewardsPool balance + pending rewards in FeeDistributor
       const expectedPrizes = await rewardsPool.getExpectedPrizes();
       
-      // With 0 balance, all prizes should be 0
       expect(expectedPrizes.length).to.equal(10);
-      for (let i = 0; i < 10; i++) {
-        expect(expectedPrizes[i]).to.equal(0);
-      }
+
+      await feeDistributor.connect(gameContract).distributeEntryFee({ value: ENTRY_FEE });
+      const expectedWithPool = await rewardsPool.getExpectedPrizes();
+
+      // Total pool is 0.000007 ETH; first place is 30% => 0.0000021 ETH
+      expect(expectedWithPool[0]).to.equal(ethers.parseEther("0.0000021"));
     });
 
     it("Should return week history", async function () {

@@ -51,28 +51,35 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
   const lootLine = gemsDelta > 0 ? `Looted ${gemsDelta} gem${gemsDelta === 1 ? '' : 's'}.` : 'No gems recovered.';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="relative w-full max-w-2xl rounded-2xl border border-purple-500/40 bg-[#120d24] p-6 shadow-2xl shadow-purple-900/40">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div className="relative w-full max-w-2xl royal-board p-6" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full border border-purple-500/40 bg-black/40 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-purple-200 hover:bg-purple-800/40"
+          className="absolute right-4 top-4 z-20 pointer-events-auto rounded-full border border-amber-600/60 bg-dungeon-bg-darker/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/90 hover:border-white hover:text-white transition"
         >
           Close
         </button>
 
         <div className="mb-6 flex items-center gap-3">
-          <span className="text-3xl" aria-hidden>{cardEmoji}</span>
+          <span className="text-3xl" aria-hidden>
+            {cardEmoji}
+          </span>
           <div>
-            <p className="text-sm text-purple-200/80">Room {room}</p>
-            <h3 className="text-2xl font-bold text-white">Combat resolved: {cardLabel}</h3>
+            <p className="text-sm text-white/70 uppercase tracking-[0.25em]">Room {room}</p>
+            <h3 className="text-2xl font-bold text-dungeon-accent-gold">Combat resolved: {cardLabel}</h3>
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div className="rounded-xl border border-purple-500/20 bg-black/30 p-4 text-center">
-            <p className="mb-3 text-sm font-semibold text-purple-200">{heroName}</p>
-            <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-purple-500/40">
+          <div className="rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center">
+            <p className="mb-3 text-sm font-semibold text-white">{heroName}</p>
+            <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-amber-600/60">
               <Image
                 src={heroCardImage ?? '/avatars/adventurer-idle.png'}
                 alt={`${heroName} card art`}
@@ -80,60 +87,60 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
                 className="object-cover"
               />
             </div>
-            <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-purple-100">
-              <div className="rounded-lg bg-purple-900/20 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-widest text-purple-300/90">Attack</dt>
+            <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/90">
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Attack</dt>
                 <dd className="font-semibold text-white">{heroAttack}</dd>
               </div>
-              <div className="rounded-lg bg-purple-900/20 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-widest text-purple-300/90">Defense</dt>
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Defense</dt>
                 <dd className="font-semibold text-white">{heroDefense}</dd>
               </div>
-              <div className="rounded-lg bg-purple-900/20 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-widest text-purple-300/90">Max HP</dt>
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Max HP</dt>
                 <dd className="font-semibold text-white">{heroMaxHP}</dd>
               </div>
             </dl>
           </div>
 
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full border border-purple-500/40 bg-purple-800/50 text-lg font-bold text-white md:flex">
+          <div className="hidden h-10 w-10 items-center justify-center rounded-full border border-amber-600/60 bg-dungeon-bg-darker/70 text-lg font-bold text-dungeon-accent-gold md:flex">
             VS
           </div>
 
-          <div className="rounded-xl border border-red-500/30 bg-black/30 p-4 text-center">
-            <p className="mb-3 text-sm font-semibold text-red-200">Enemy</p>
-            <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-red-500/40">
+          <div className="rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center">
+            <p className="mb-3 text-sm font-semibold text-white">Enemy</p>
+            <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-amber-600/60">
               <Image src={ENEMY_IMAGE} alt="Enemy card art" fill className="object-cover" />
             </div>
-            <p className="mt-4 text-sm text-red-200/80">{cardLabel}</p>
+            <p className="mt-4 text-sm text-white/70">{cardLabel}</p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-purple-500/20 bg-black/40 p-3">
-            <p className="text-[10px] uppercase tracking-widest text-purple-300/90">HP change</p>
+          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP change</p>
             <p className="text-lg font-semibold text-white">
               {heroHPBefore} → {heroHPAfter}
             </p>
-            <p className="text-xs text-purple-200/70">{damageLine}</p>
+            <p className="text-xs text-white/70">{damageLine}</p>
           </div>
-          <div className="rounded-lg border border-purple-500/20 bg-black/40 p-3">
-            <p className="text-[10px] uppercase tracking-widest text-purple-300/90">Gems</p>
+          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Gems</p>
             <p className="text-lg font-semibold text-white">
               {gemsBefore} → {gemsAfter}
             </p>
-            <p className="text-xs text-purple-200/70">{lootLine}</p>
+            <p className="text-xs text-white/70">{lootLine}</p>
           </div>
-          <div className="rounded-lg border border-purple-500/20 bg-black/40 p-3">
-            <p className="text-[10px] uppercase tracking-widest text-purple-300/90">Outcome</p>
+          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Outcome</p>
             <p className={`text-lg font-semibold ${heroDied ? 'text-red-300' : 'text-green-300'}`}>{heroDied ? 'Defeat' : 'Victory'}</p>
-            <p className="text-xs text-purple-200/70">{survivalLine}</p>
+            <p className="text-xs text-white/70">{survivalLine}</p>
           </div>
         </div>
 
-        <div className="mt-6 rounded-xl border border-purple-500/20 bg-black/30 p-4 text-sm text-purple-100">
-          <p className="font-semibold uppercase tracking-widest text-purple-300/90">Battle breakdown</p>
-          <ul className="mt-3 space-y-2 text-xs text-purple-100/90">
+        <div className="mt-6 rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-sm text-white/90">
+          <p className="font-semibold uppercase tracking-[0.25em] text-white/70">Battle breakdown</p>
+          <ul className="mt-3 space-y-2 text-xs text-white/80">
             <li>Attack value applied: {heroAttack}</li>
             <li>Defense reduced incoming damage to {damageTaken}</li>
             <li>Remaining vitality: {heroHPAfter}/{heroMaxHP}</li>

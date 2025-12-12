@@ -153,6 +153,8 @@ export default function GamePage() {
   const [revealedCards, setRevealedCards] = useState<Record<number, number>>({}); // index -> cardType
   const [isChoosingCard, setIsChoosingCard] = useState(false);
   const [txErrorMessage, setTxErrorMessage] = useState<string | null>(null);
+  // Prevent ultra-fast double-clicks from sending multiple txs before React disables the UI.
+  const cardSelectionLockRef = useRef(false);
 
   const describeFriendlyError = useCallback((message: string) => {
     const lower = message.toLowerCase();
@@ -258,9 +260,12 @@ export default function GamePage() {
       });
 
       if (adventureLogRefetchRef.current) {
-        setTimeout(() => {
-          adventureLogRefetchRef.current?.();
-        }, 500);
+        // Update log as soon as the card outcome is resolved.
+        // Also retry a couple times to handle RPC log-indexing latency.
+        adventureLogRefetchRef.current();
+        setTimeout(() => adventureLogRefetchRef.current?.(), 400);
+        setTimeout(() => adventureLogRefetchRef.current?.(), 1200);
+        setTimeout(() => adventureLogRefetchRef.current?.(), 2500);
       }
 
       if (entry.cardType === 0) {
@@ -297,6 +302,7 @@ export default function GamePage() {
       setTimeout(() => {
         setRevealedCards({});
         setSelectedCardIndex(null);
+        cardSelectionLockRef.current = false;
         refetchRun();
       }, 3000);
     },
@@ -310,12 +316,9 @@ export default function GamePage() {
   // Function to reveal card from transaction receipt
   const revealCardFromTx = useCallback(async (txHash: `0x${string}`) => {
     if (!publicClient) return;
-    
-    console.log('Waiting for tx receipt:', txHash);
-    
+
     try {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-      console.log('Got receipt, logs:', receipt.logs.length);
       
       // Parse CardResolved event from logs using viem's decodeEventLog
       for (const log of receipt.logs) {
@@ -326,8 +329,6 @@ export default function GamePage() {
             data: log.data,
             topics: log.topics,
           });
-          
-          console.log('Decoded event:', decoded.eventName, decoded.args);
           
           if (
             decoded.eventName === 'CardResolved' &&
@@ -363,7 +364,6 @@ export default function GamePage() {
       }
       
       // If we get here, no CardResolved event was found - still reset state
-      console.log('No CardResolved event found in logs');
       setIsChoosingCard(false);
       setPendingTxHash(null);
       refetchRun();
@@ -491,6 +491,9 @@ export default function GamePage() {
   };
 
   const handleChooseCard = async (cardIndex: number) => {
+    // Hard lock: do not allow selecting another card until UI resets.
+    if (cardSelectionLockRef.current) return;
+
     if (!tokenId) return;
     setCardError(null);
     if (!isActive || !isDeposited) {
@@ -513,6 +516,9 @@ export default function GamePage() {
       heroMaxHP: runState?.maxHP ?? toNumber(stats?.hp),
     };
     
+    // Lock immediately so a second click can't enqueue another tx
+    cardSelectionLockRef.current = true;
+
     // Set loading state for the selected card
     setSelectedCardIndex(cardIndex);
     setIsChoosingCard(true);
@@ -534,6 +540,7 @@ export default function GamePage() {
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
       combatSnapshotRef.current = null;
+      cardSelectionLockRef.current = false;
       return;
     }
     try {
@@ -553,6 +560,7 @@ export default function GamePage() {
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
       combatSnapshotRef.current = null;
+      cardSelectionLockRef.current = false;
     }
   };
 
@@ -649,7 +657,13 @@ export default function GamePage() {
                       key={index}
                       index={index}
                       label={label}
-                      disabled={cardDisabled || isChoosingCard}
+                      disabled={
+                        cardDisabled ||
+                        isChoosingCard ||
+                        selectedCardIndex !== null ||
+                        Object.keys(revealedCards).length > 0 ||
+                        pendingTxHash !== null
+                      }
                       revealed={revealedCards[index] !== undefined}
                       revealedType={revealedCards[index]}
                       onClick={() => handleChooseCard(index)}

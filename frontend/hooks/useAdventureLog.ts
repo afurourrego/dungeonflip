@@ -100,7 +100,9 @@ export function useAdventureLog(address?: `0x${string}`, tokenId?: bigint, curre
           }
         }
 
-        setLogs(filteredLogs);
+        // UI wants newest-first so the latest entry is always visible at the top.
+        // Keep filtering in chronological order, then reverse for display.
+        setLogs([...filteredLogs].reverse());
       } catch (error) {
         console.error('Error fetching adventure logs:', error);
       } finally {
