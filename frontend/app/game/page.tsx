@@ -198,6 +198,12 @@ export default function GamePage() {
         return deduped;
       });
 
+      if (adventureLogRefetchRef.current) {
+        setTimeout(() => {
+          adventureLogRefetchRef.current?.();
+        }, 500);
+      }
+
       if (entry.cardType === 0) {
         const snapshot = combatSnapshotRef.current;
         const hpBefore = snapshot?.hpBefore ?? toNumber(runState?.currentHP ?? stats?.hp);
@@ -232,9 +238,8 @@ export default function GamePage() {
       setTimeout(() => {
         setRevealedCards({});
         setSelectedCardIndex(null);
+        refetchRun();
       }, 3000);
-
-      refetchRun();
     },
     [heroProfile, refetchRun, runState, stats]
   );
@@ -278,50 +283,6 @@ export default function GamePage() {
             }
 
             const cardType = Number(cardTypeValue);
-            
-            const currentIndex = selectedCardIndexRef.current;
-            console.log('CardResolved! cardType:', cardType, 'selectedIndex:', currentIndex);
-            
-            if (currentIndex !== null) {
-              setRevealedCards((prev) => ({
-                ...prev,
-                [currentIndex]: cardType,
-              }));
-              setIsChoosingCard(false);
-              setPendingTxHash(null);
-              
-              // Add to feed
-              const roomValue = args.room;
-              const hpValue = args.hp;
-              const gemsValue = args.gems;
-
-              const newEntry: CardFeedItem = {
-                txHash: txHash,
-                cardType: cardType,
-                room: typeof roomValue === 'bigint' || typeof roomValue === 'number' ? Number(roomValue) : 0,
-                hp: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : 0,
-                gems: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : 0,
-              };
-              
-              setCardFeed((prev) => [newEntry, ...prev].slice(0, 8));
-
-              // Refetch adventure log to show new event
-              if (adventureLogRefetchRef.current) {
-                setTimeout(() => {
-                  adventureLogRefetchRef.current?.();
-                }, 500);
-              }
-
-              // Auto-reset after 3 seconds
-              setTimeout(() => {
-                setRevealedCards({});
-                setSelectedCardIndex(null);
-                // Refetch run state AFTER the card animation is done
-                refetchRun();
-              }, 3000);
-
-              return;
-            }
             const roomValue = args.room;
             const hpValue = args.hp;
             const gemsValue = args.gems;
@@ -388,38 +349,6 @@ export default function GamePage() {
         })
         .reverse();
       if (entries.length) {
-        // Reveal the selected card with the resolved type
-        const latestEntry = entries[0];
-        const currentSelectedIndex = selectedCardIndexRef.current;
-        
-        if (currentSelectedIndex !== null) {
-          setRevealedCards((prev) => ({
-            ...prev,
-            [currentSelectedIndex]: latestEntry.cardType,
-          }));
-          setIsChoosingCard(false);
-          // Auto-reset cards after showing the result for 3 seconds
-          setTimeout(() => {
-            setRevealedCards({});
-            setSelectedCardIndex(null);
-            // Refetch run state AFTER the card animation is done
-            refetchRun();
-          }, 3000);
-        }
-
-        setCardFeed((prev) => {
-          const combined = [...entries, ...prev];
-          const seen = new Set<string>();
-          const deduped: CardFeedItem[] = [];
-          for (const item of combined) {
-            const key = `${item.txHash}-${item.cardType}-${item.room}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            deduped.push(item);
-            if (deduped.length >= 8) break;
-          }
-          return deduped;
-        });
         entries.forEach((entry) => processCardResolution(entry));
       }
     },
