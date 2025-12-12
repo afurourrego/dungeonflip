@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 
 // Card type constants from contract
 // 0 = Monster, 1 = Trap, 2 = Potion +1, 3 = Full Heal, 4 = Treasure
@@ -47,6 +47,10 @@ export function GameCard({
   const [showFront, setShowFront] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
 
+  // We still disable pointer interaction during locks, but we don't want the
+  // selected card to look "greyed out" while it's loading or revealed.
+  const shouldDim = disabled && !isLoading && !revealed;
+
   // Reset flip state when revealed changes
   useEffect(() => {
     if (revealed && revealedType !== undefined) {
@@ -79,7 +83,7 @@ export function GameCard({
       className={`
         relative aspect-[2/3] w-full rounded-xl overflow-hidden
         transition-all duration-200
-        ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105 hover:shadow-lg hover:shadow-dungeon-accent-gold/30 cursor-pointer'}
+        ${shouldDim ? 'opacity-40 cursor-not-allowed' : disabled ? 'cursor-not-allowed' : 'hover:scale-105 hover:shadow-lg hover:shadow-dungeon-accent-gold/30 cursor-pointer'}
         ${isLoading ? 'animate-pulse' : ''}
       `}
       style={{ perspective: '1000px' }}
@@ -158,7 +162,7 @@ export function GameCard({
                   animation: `particleBurst ${duration}s ease-out forwards`,
                   '--angle': `${angle}deg`,
                   '--distance': `${distance}px`,
-                } as React.CSSProperties}
+                } as CSSProperties}
               />
             );
           })}

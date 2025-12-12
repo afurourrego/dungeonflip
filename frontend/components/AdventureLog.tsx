@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdventureLog, AdventureLogEntry, AdventureLogEntryType } from '@/hooks/useAdventureLog';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface AdventureLogProps {
   address?: `0x${string}`;
@@ -105,6 +105,7 @@ export function AdventureLog({ address, tokenId, currentRunStartBlock, onRefetch
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
   const { logs, isLoading, refetch } = useAdventureLog(address, tokenId, currentRunStartBlock);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Expose refetch to parent via callback
   useEffect(() => {
@@ -112,6 +113,13 @@ export function AdventureLog({ address, tokenId, currentRunStartBlock, onRefetch
       onRefetch(refetch);
     }
   }, [onRefetch, refetch]);
+
+  // Keep the newest entry visible (we render newest-first).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+  }, [logs.length]);
 
   if (!isClient) {
     return (
@@ -147,7 +155,7 @@ export function AdventureLog({ address, tokenId, currentRunStartBlock, onRefetch
         )}
       </div>
 
-      <div className="h-[300px] overflow-y-auto pr-4">
+      <div ref={scrollRef} className="h-[300px] overflow-y-auto pr-4">
         {logs.length === 0 ? (
           <p className="text-gray-400 text-sm italic">No events recorded yet</p>
         ) : (
