@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
-import { AventurerStats, WalletNFT, useWalletNFTs } from '@/hooks/useNFT';
+import { AventurerStats, WalletNFT, useTotalSupply, useWalletNFTs } from '@/hooks/useNFT';
 import { useSelectedToken } from '@/hooks/useSelectedToken';
 import { getAventurerClassWithCard } from '@/lib/aventurer';
 import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK, NETWORKS } from '@/lib/constants';
@@ -12,6 +12,7 @@ import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 import { Header } from '@/components/Header';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { RunStatus } from '@/hooks/useGame';
 
 type SortKey = keyof Pick<AventurerStats, 'atk' | 'def' | 'hp' | 'mintedAt'>;
 type SortDir = 'asc' | 'desc';
@@ -35,6 +36,7 @@ export default function NFTsPage() {
   const { address, isConnected, chain } = useAccount();
   const publicClient = usePublicClient();
   const { data: nfts = [], isLoading, error, refresh } = useWalletNFTs(address);
+  const { data: totalSupply } = useTotalSupply();
 
   // Get owned token IDs for validation
   const ownedTokenIds = useMemo(() => nfts.map((nft) => nft.tokenId), [nfts]);
@@ -48,6 +50,20 @@ export default function NFTsPage() {
   const [mounted, setMounted] = useState(false);
   const [burnToken, setBurnToken] = useState<bigint | null>(null);
   const [activeNFT, setActiveNFT] = useState<WalletNFT | null>(null);
+  const [dungeonNFTs, setDungeonNFTs] = useState<WalletNFT[]>([]);
+  const [runStateByToken, setRunStateByToken] = useState<
+    Record<
+      string,
+      {
+        status: RunStatus;
+        deposited: boolean;
+        currentRoom: number;
+        currentHP: number;
+        maxHP: number;
+        gems: number;
+      }
+    >
+  >({});
 
   const burnAddress =
     chain?.id === NETWORKS.BASE_MAINNET.id ? BURN_ADDRESSES.BASE_MAINNET : BURN_ADDRESSES.BASE_SEPOLIA;
@@ -103,27 +119,120 @@ export default function NFTsPage() {
     };
   }, [publicClient, activeTokenId, nfts]);
 
+  // Discover NFTs currently in dungeon (custodied by the game contract)
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!address || !publicClient || totalSupply === undefined) {
+        setDungeonNFTs([]);
+        return;
+      }
+      const normalized = address.toLowerCase();
+      const supply = Number(totalSupply);
+      const maxTokens = Math.max(Math.min(supply, 500), 50);
+      const found: WalletNFT[] = [];
+      const runInfo: Record<
+        string,
+        {
+          status: RunStatus;
+          deposited: boolean;
+          currentRoom: number;
+          currentHP: number;
+          maxHP: number;
+          gems: number;
+        }
+      > = {};
+
+      for (let i = 1; i <= maxTokens; i++) {
+        try {
+          const run = (await publicClient.readContract({
+            address: CONTRACTS.DUNGEON_GAME,
+            abi: DungeonGameABI.abi,
+            functionName: 'tokenRuns',
+            args: [BigInt(i)],
+          })) as readonly [
+            `0x${string}`,
+            number,
+            boolean,
+            bigint,
+            bigint,
+            bigint,
+            bigint,
+            bigint,
+            bigint,
+            bigint,
+            bigint
+          ];
+          const lastOwner = run[0];
+          const status = Number(run[1]) as RunStatus;
+          const isDeposited = run[2];
+          runInfo[i.toString()] = {
+            status,
+            deposited: isDeposited,
+            currentRoom: Number(run[3]),
+            currentHP: Number(run[4]),
+            maxHP: Number(run[5]),
+            gems: Number(run[8]),
+          };
+
+          if (typeof lastOwner === 'string' && lastOwner.toLowerCase() === normalized && (isDeposited || status === RunStatus.Paused)) {
+            const stats = (await publicClient.readContract({
+              address: CONTRACTS.AVENTURER_NFT,
+              abi: AventurerNFTABI.abi,
+              functionName: 'getAventurerStats',
+              args: [BigInt(i)],
+            })) as AventurerStats;
+            found.push({ tokenId: BigInt(i), stats });
+          }
+        } catch {
+          // ignore unreadable token ids
+        }
+      }
+
+      if (!cancelled) {
+        setDungeonNFTs(found);
+        setRunStateByToken(runInfo);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, publicClient, totalSupply]);
+
   const sorted = useMemo(() => {
-    const baseList = [...(nfts ?? [])];
-    if (activeNFT && !baseList.some((nft) => nft.tokenId === activeNFT.tokenId)) {
-      baseList.push(activeNFT);
-    }
-    return baseList.sort((a, b) => {
+    const byId = new Map<string, WalletNFT>();
+
+    const addOrReplace = (item?: WalletNFT | null) => {
+      if (!item) return;
+      byId.set(item.tokenId.toString(), item);
+    };
+
+    (nfts ?? []).forEach((nft) => addOrReplace(nft));
+    addOrReplace(activeNFT);
+    dungeonNFTs.forEach((nft) => addOrReplace(nft));
+
+    const merged = Array.from(byId.values());
+
+    return merged.sort((a, b) => {
       const aVal = Number(a.stats[sortKey]);
       const bVal = Number(b.stats[sortKey]);
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
-  }, [nfts, sortKey, sortDir, activeNFT]);
+  }, [nfts, sortKey, sortDir, activeNFT, dungeonNFTs]);
 
   const displayList = useMemo(
     () =>
       sorted.filter((nft) => {
         const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
-        if (statusFilter === 'active') return isActiveToken;
-        if (statusFilter === 'idle') return !isActiveToken;
+        const runInfo = runStateByToken[nft.tokenId.toString()];
+        const isPausedRun = runInfo?.status === RunStatus.Paused;
+        const isInDungeon = isActiveToken || runInfo?.deposited || isPausedRun || dungeonNFTs.some((d) => d.tokenId === nft.tokenId);
+        if (statusFilter === 'active') return isInDungeon;
+        if (statusFilter === 'idle') return !isInDungeon;
         return true;
       }),
-    [sorted, statusFilter, activeTokenId]
+    [sorted, statusFilter, activeTokenId, dungeonNFTs, runStateByToken]
   );
 
   useEffect(() => {
@@ -256,8 +365,23 @@ export default function NFTsPage() {
                 <div className="grid md:grid-cols-2 gap-6">
                   {displayList.map((nft) => {
                     const nftClass = getAventurerClassWithCard(nft.stats);
+                    const runInfo = runStateByToken[nft.tokenId.toString()];
                     const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
+                    const isPausedRun = runInfo?.status === RunStatus.Paused;
+        const isInDungeon =
+                      isActiveToken ||
+                      runInfo?.deposited ||
+                      isPausedRun ||
+                      dungeonNFTs.some((d) => d.tokenId === nft.tokenId);
                     const isSelected = selectedTokenId === nft.tokenId;
+                    const statsExtra = isInDungeon
+                      ? runInfo && {
+                          room: runInfo.currentRoom,
+                          hp: runInfo.currentHP,
+                          maxHP: runInfo.maxHP,
+                          gems: runInfo.gems,
+                        }
+                      : null;
                     return (
                       <div
                         key={nft.tokenId.toString()}
@@ -270,19 +394,19 @@ export default function NFTsPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-xs text-white/70">Token ID</p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-2xl font-bold text-white">#{nft.tokenId.toString()}</p>
-                              {isActiveToken && (
+                          <div className="flex items-center gap-2">
+                            <p className="text-2xl font-bold text-white">#{nft.tokenId.toString()}</p>
+                              {isInDungeon && (
                                 <span className="text-[10px] px-2 py-1 rounded-full bg-green-600/30 border border-green-400/60 text-green-100">
-                                  In dungeon
+                                  {isPausedRun ? 'Paused run' : 'In dungeon'}
                                 </span>
                               )}
-                              {isSelected && !isActiveToken && (
-                                <span className="text-[10px] px-2 py-1 rounded-full bg-amber-600/30 border border-amber-400/60 text-amber-100">
-                                  Selected
-                                </span>
-                              )}
-                            </div>
+                            {isSelected && !isInDungeon && (
+                              <span className="text-[10px] px-2 py-1 rounded-full bg-amber-600/30 border border-amber-400/60 text-amber-100">
+                                Selected
+                              </span>
+                            )}
+                          </div>
                             {nftClass && (
                               <span
                                 className={`inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-full text-xs font-semibold text-black bg-gradient-to-r ${nftClass.accent}`}
@@ -314,6 +438,25 @@ export default function NFTsPage() {
                             <p className="text-2xl font-bold text-white">{nft.stats.hp.toString()}</p>
                           </div>
                         </div>
+
+                        {statsExtra && (
+                          <div className="grid grid-cols-3 gap-3 text-center">
+                            <div className="bg-dungeon-bg-deeper rounded-lg p-3">
+                              <p className="text-xs text-white/70">Room</p>
+                              <p className="text-2xl font-bold text-white">{statsExtra.room}</p>
+                            </div>
+                            <div className="bg-dungeon-bg-deeper rounded-lg p-3">
+                              <p className="text-xs text-white/70">HP</p>
+                              <p className="text-2xl font-bold text-white">
+                                {statsExtra.hp}/{statsExtra.maxHP}
+                              </p>
+                            </div>
+                            <div className="bg-dungeon-bg-deeper rounded-lg p-3">
+                              <p className="text-xs text-white/70">Gems</p>
+                              <p className="text-2xl font-bold text-white">{statsExtra.gems}</p>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="text-xs text-white/70">
                           Minted: {formatDate(nft.stats.mintedAt)}

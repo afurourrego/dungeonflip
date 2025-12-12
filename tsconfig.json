@@ -14,13 +14,14 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["node", "mocha", "chai"]
+    "typeRoots": ["./types", "./node_modules/@types"]
   },
   "include": [
     "./contracts/**/*.sol",
     "./scripts/**/*.ts",
     "./test/**/*.ts",
-    "./hardhat.config.ts"
+    "./hardhat.config.ts",
+    "./types/**/*.d.ts"
   ],
   "exclude": ["node_modules", "dist", "cache", "artifacts", "typechain-types"]
 }

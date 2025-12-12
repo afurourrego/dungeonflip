@@ -69,8 +69,44 @@ export default function GamePage() {
 
   const { data: stats, isLoading: isLoadingStats } = useAventurerStats(tokenId, true); // Enable static mode
 
-  // Only show preview when data is stable (NFTs loaded + tokenId settled + stats loaded)
-  const showPreview = !isLoadingNfts && !isLoadingTokenId && !isLoadingStats && !!stats && !!tokenId;
+  // Keep preview visible during refetches to avoid UI flicker after on-chain actions
+  const [hasLoadedNfts, setHasLoadedNfts] = useState(false);
+  const [hasLoadedToken, setHasLoadedToken] = useState(false);
+  const [hasLoadedStats, setHasLoadedStats] = useState(false);
+
+  useEffect(() => {
+    if (!isLoadingNfts) {
+      setHasLoadedNfts(true);
+    }
+  }, [isLoadingNfts]);
+
+  useEffect(() => {
+    setHasLoadedNfts(false);
+  }, [address]);
+
+  useEffect(() => {
+    if (!isLoadingTokenId || tokenId) {
+      setHasLoadedToken(true);
+    }
+  }, [isLoadingTokenId, tokenId]);
+
+  useEffect(() => {
+    if (!isLoadingStats || stats) {
+      setHasLoadedStats(true);
+    }
+  }, [isLoadingStats, stats]);
+
+  useEffect(() => {
+    setHasLoadedToken(false);
+    setHasLoadedStats(false);
+  }, [tokenId]);
+
+  const showPreview = !!stats && !!tokenId;
+  const isInitialDataLoading =
+    !showPreview &&
+    ((isLoadingNfts && !hasLoadedNfts) ||
+      (isLoadingTokenId && !hasLoadedToken) ||
+      (isLoadingStats && !hasLoadedStats));
   const heroProfile = useMemo(
     () => getAventurerClassWithCard(stats),
     [stats?.atk, stats?.def, stats?.hp, stats?.mintedAt]
@@ -116,6 +152,29 @@ export default function GamePage() {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number | null>(null);
   const [revealedCards, setRevealedCards] = useState<Record<number, number>>({}); // index -> cardType
   const [isChoosingCard, setIsChoosingCard] = useState(false);
+  const [txErrorMessage, setTxErrorMessage] = useState<string | null>(null);
+
+  const describeFriendlyError = useCallback((message: string) => {
+    const lower = message.toLowerCase();
+    if (lower.includes('user rejected') || lower.includes('denied')) {
+      return 'Signature was cancelled in your wallet. No transaction was sent.';
+    }
+    if (lower.includes('insufficient') || lower.includes('not enough')) {
+      return 'Not enough funds to send the transaction.';
+    }
+    if (lower.includes('network') || lower.includes('rpc') || lower.includes('timeout')) {
+      return 'The network took too long to respond. Please try again.';
+    }
+    return 'We could not complete the transaction. Please try again in a moment.';
+  }, []);
+
+  const showTransactionError = useCallback(
+    (message: string) => {
+      const friendly = describeFriendlyError(message);
+      setTxErrorMessage(friendly);
+    },
+    [describeFriendlyError]
+  );
 
   useEffect(() => {
     if (!hash) return;
@@ -371,6 +430,14 @@ export default function GamePage() {
   const actionDisabled = !tokenId || isPending || isConfirming || isApprovingApproval || needsApproval;
   const cardDisabled = actionDisabled || !isActive || !isDeposited;
 
+  const showAdventurerSkeleton =
+    isInitialDataLoading &&
+    mounted &&
+    isConnected &&
+    !isWrongNetwork &&
+    hasNFT &&
+    !!tokenId;
+
   const statusCopy = STATUS_COPY[status];
 
   const canEnter = Boolean(hasNFT && tokenId && !isActive && !isPaused && !isDead);
@@ -462,7 +529,8 @@ export default function GamePage() {
     } catch (err) {
       console.error('chooseCard simulation error', err);
       const message = err instanceof Error ? err.message : String(err);
-      setCardError(message);
+      setCardError('Could not simulate the move. Please review and try again.');
+      showTransactionError(message);
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
       combatSnapshotRef.current = null;
@@ -480,7 +548,8 @@ export default function GamePage() {
     } catch (err) {
       console.error('chooseCard error', err);
       const message = err instanceof Error ? err.message : String(err);
-      setCardError(message);
+      setCardError('Could not send the transaction. Please review and try again.');
+      showTransactionError(message);
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
       combatSnapshotRef.current = null;
@@ -533,6 +602,32 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen text-white">
+      {txErrorMessage ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-xl border border-red-500/60 bg-gradient-to-b from-dungeon-bg-darker to-dungeon-bg-medium shadow-2xl shadow-black/60 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xl text-red-300">⚠️</span>
+              <h3 className="text-lg font-bold text-red-200">Transaction could not be completed</h3>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-200 leading-relaxed">{txErrorMessage}</p>
+              <p className="text-xs text-gray-400">
+                If you cancelled the signature in your wallet, you can try again whenever you’re ready.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setTxErrorMessage(null);
+                window.location.reload();
+              }}
+              className="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 rounded-lg transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {combatSummary ? (
         <CombatResultDialog summary={combatSummary} onClose={handleCloseCombatSummary} />
       ) : null}
@@ -646,7 +741,7 @@ export default function GamePage() {
 
           <section className="lg:col-span-2 space-y-6">
             {/* Loading State for Adventurer */}
-            {(isLoadingNfts || isLoadingTokenId || isLoadingStats) && !showPreview && mounted && isConnected && !isWrongNetwork && hasNFT && (
+            {showAdventurerSkeleton && (
               <div className="card p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-xl">⚔️</span>
