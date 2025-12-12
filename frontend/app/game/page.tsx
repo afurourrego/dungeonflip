@@ -10,6 +10,7 @@ import { useNFTBalance, useNFTOwnerTokens, useAventurerStats, useDungeonApproval
 import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/useGame';
 import { AdventureLog } from '@/components/AdventureLog';
 import { GameCard } from '@/components/GameCard';
+import { CombatResultDialog, CombatSummary } from '@/components/CombatResultDialog';
 import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
 import { getAventurerClassWithCard } from '@/lib/aventurer';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
@@ -32,6 +33,16 @@ type CardFeedItem = {
   room: number;
   hp: number;
   gems: number;
+};
+
+type CombatSnapshot = {
+  cardIndex: number;
+  roomBefore: number;
+  hpBefore: number;
+  gemsBefore: number;
+  heroAttack: number;
+  heroDefense: number;
+  heroMaxHP: number;
 };
 
 export default function GamePage() {
@@ -107,13 +118,108 @@ export default function GamePage() {
   const [revealedCards, setRevealedCards] = useState<Record<number, number>>({}); // index -> cardType
   const [isChoosingCard, setIsChoosingCard] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | null>(null);
+  const [combatSummary, setCombatSummary] = useState<CombatSummary | null>(null);
   const selectedCardIndexRef = useRef<number | null>(null);
+  const combatSnapshotRef = useRef<CombatSnapshot | null>(null);
+  const processedResolutionsRef = useRef<Set<string>>(new Set());
   const publicClient = usePublicClient();
 
   // Keep ref in sync with state
   useEffect(() => {
     selectedCardIndexRef.current = selectedCardIndex;
   }, [selectedCardIndex]);
+
+  const toNumber = (value?: bigint | number) => {
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof value === 'number') return value;
+    return 0;
+  };
+
+  const processCardResolution = useCallback(
+    (entry: CardFeedItem) => {
+      const resolutionKey = `${entry.txHash}-${entry.cardType}-${entry.room}`;
+      const processedSet = processedResolutionsRef.current;
+      if (processedSet.has(resolutionKey)) {
+        return;
+      }
+
+      processedSet.add(resolutionKey);
+      if (processedSet.size > 50) {
+        const firstKey = processedSet.values().next().value as string | undefined;
+        if (firstKey) {
+          processedSet.delete(firstKey);
+        }
+      }
+
+      const currentIndex = selectedCardIndexRef.current;
+      if (currentIndex !== null) {
+        setRevealedCards((prev) => ({
+          ...prev,
+          [currentIndex]: entry.cardType,
+        }));
+      }
+
+      setIsChoosingCard(false);
+      setPendingTxHash(null);
+
+      setCardFeed((prev) => {
+        const combined = [entry, ...prev];
+        const seen = new Set<string>();
+        const deduped: CardFeedItem[] = [];
+        for (const item of combined) {
+          const key = `${item.txHash}-${item.cardType}-${item.room}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          deduped.push(item);
+          if (deduped.length >= 8) break;
+        }
+        return deduped;
+      });
+
+      if (entry.cardType === 0) {
+        const snapshot = combatSnapshotRef.current;
+        const hpBefore = snapshot?.hpBefore ?? toNumber(runState?.currentHP ?? stats?.hp);
+        const gemsBefore = snapshot?.gemsBefore ?? (runState?.gems ?? entry.gems);
+        const heroAttack = snapshot?.heroAttack ?? (runState?.atk ?? toNumber(stats?.atk));
+        const heroDefense = snapshot?.heroDefense ?? (runState?.def ?? toNumber(stats?.def));
+        const heroMaxHP = snapshot?.heroMaxHP ?? (runState?.maxHP ?? toNumber(stats?.hp));
+        const damageTaken = Math.max(0, hpBefore - entry.hp);
+        const gemsDelta = entry.gems - gemsBefore;
+
+        setCombatSummary({
+          room: entry.room,
+          damageTaken,
+          heroHPBefore: hpBefore,
+          heroHPAfter: entry.hp,
+          heroAttack,
+          heroDefense,
+          heroMaxHP,
+          heroDied: entry.hp <= 0,
+          gemsBefore,
+          gemsAfter: entry.gems,
+          gemsDelta,
+          heroName: heroProfile?.name ?? 'Adventurer',
+          heroCardImage: heroProfile?.cardImage,
+          cardLabel: CARD_LABELS[entry.cardType] ?? 'Monster',
+          cardEmoji: CARD_EMOJIS[entry.cardType] ?? '👹',
+        });
+      }
+
+      combatSnapshotRef.current = null;
+
+      setTimeout(() => {
+        setRevealedCards({});
+        setSelectedCardIndex(null);
+      }, 3000);
+
+      refetchRun();
+    },
+    [heroProfile, refetchRun, runState, stats]
+  );
+
+  const handleCloseCombatSummary = useCallback(() => {
+    setCombatSummary(null);
+  }, []);
 
   // Function to reveal card from transaction receipt
   const revealCardFromTx = useCallback(async (txHash: `0x${string}`) => {
@@ -150,42 +256,20 @@ export default function GamePage() {
             }
 
             const cardType = Number(cardTypeValue);
-            
-            const currentIndex = selectedCardIndexRef.current;
-            console.log('CardResolved! cardType:', cardType, 'selectedIndex:', currentIndex);
-            
-            if (currentIndex !== null) {
-              setRevealedCards((prev) => ({
-                ...prev,
-                [currentIndex]: cardType,
-              }));
-              setIsChoosingCard(false);
-              setPendingTxHash(null);
-              
-              // Add to feed
-              const roomValue = args.room;
-              const hpValue = args.hp;
-              const gemsValue = args.gems;
+            const roomValue = args.room;
+            const hpValue = args.hp;
+            const gemsValue = args.gems;
 
-              const newEntry: CardFeedItem = {
-                txHash: txHash,
-                cardType: cardType,
-                room: typeof roomValue === 'bigint' || typeof roomValue === 'number' ? Number(roomValue) : 0,
-                hp: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : 0,
-                gems: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : 0,
-              };
-              
-              setCardFeed((prev) => [newEntry, ...prev].slice(0, 8));
-              
-              // Auto-reset after 3 seconds
-              setTimeout(() => {
-                setRevealedCards({});
-                setSelectedCardIndex(null);
-              }, 3000);
-              
-              refetchRun();
-              return;
-            }
+            const newEntry: CardFeedItem = {
+              txHash,
+              cardType,
+              room: typeof roomValue === 'bigint' || typeof roomValue === 'number' ? Number(roomValue) : 0,
+              hp: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : 0,
+              gems: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : 0,
+            };
+
+            processCardResolution(newEntry);
+            return;
           }
         } catch {
           // Not a CardResolved event or wrong contract, continue
@@ -203,7 +287,7 @@ export default function GamePage() {
       setIsChoosingCard(false);
       setPendingTxHash(null);
     }
-  }, [publicClient, refetchRun]);
+  }, [processCardResolution, publicClient, refetchRun]);
 
   // Watch for pending tx to complete
   useEffect(() => {
@@ -238,37 +322,7 @@ export default function GamePage() {
         })
         .reverse();
       if (entries.length) {
-        // Reveal the selected card with the resolved type
-        const latestEntry = entries[0];
-        const currentSelectedIndex = selectedCardIndexRef.current;
-        
-        if (currentSelectedIndex !== null) {
-          setRevealedCards((prev) => ({
-            ...prev,
-            [currentSelectedIndex]: latestEntry.cardType,
-          }));
-          setIsChoosingCard(false);
-          // Auto-reset cards after showing the result for 3 seconds
-          setTimeout(() => {
-            setRevealedCards({});
-            setSelectedCardIndex(null);
-          }, 3000);
-        }
-
-        setCardFeed((prev) => {
-          const combined = [...entries, ...prev];
-          const seen = new Set<string>();
-          const deduped: CardFeedItem[] = [];
-          for (const item of combined) {
-            const key = `${item.txHash}-${item.cardType}-${item.room}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            deduped.push(item);
-            if (deduped.length >= 8) break;
-          }
-          return deduped;
-        });
-        refetchRun();
+        entries.forEach((entry) => processCardResolution(entry));
       }
     },
   });
@@ -354,6 +408,17 @@ export default function GamePage() {
       return;
     }
     
+    setCombatSummary(null);
+    combatSnapshotRef.current = {
+      cardIndex,
+      roomBefore: runState?.currentRoom ?? 0,
+      hpBefore: toNumber(runState?.currentHP ?? stats?.hp),
+      gemsBefore: runState?.gems ?? 0,
+      heroAttack: runState?.atk ?? toNumber(stats?.atk),
+      heroDefense: runState?.def ?? toNumber(stats?.def),
+      heroMaxHP: runState?.maxHP ?? toNumber(stats?.hp),
+    };
+    
     // Set loading state for the selected card
     setSelectedCardIndex(cardIndex);
     setIsChoosingCard(true);
@@ -373,6 +438,7 @@ export default function GamePage() {
       setCardError(message);
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
+      combatSnapshotRef.current = null;
       return;
     }
     try {
@@ -390,6 +456,7 @@ export default function GamePage() {
       setCardError(message);
       setSelectedCardIndex(null);
       setIsChoosingCard(false);
+      combatSnapshotRef.current = null;
     }
   };
 
@@ -439,6 +506,9 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen text-white">
+      {combatSummary ? (
+        <CombatResultDialog summary={combatSummary} onClose={handleCloseCombatSummary} />
+      ) : null}
       <Header />
 
       <main className="container mx-auto px-4 py-10">
