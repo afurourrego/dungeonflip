@@ -51,12 +51,17 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
   const lootLine = gemsDelta > 0 ? `Looted ${gemsDelta} gem${gemsDelta === 1 ? '' : 's'}.` : 'No gems recovered.';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="relative w-full max-w-2xl royal-board p-6">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div className="relative w-full max-w-2xl royal-board p-6" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full border border-amber-600/60 bg-dungeon-bg-darker/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-white/80 hover:border-white hover:text-white transition"
+          className="absolute right-4 top-4 z-20 pointer-events-auto rounded-full border border-amber-600/60 bg-dungeon-bg-darker/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/90 hover:border-white hover:text-white transition"
         >
           Close
         </button>
