@@ -3,13 +3,14 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { AventurerStats, WalletNFT, useWalletNFTs } from '@/hooks/useNFT';
 import { getAventurerClass } from '@/lib/aventurer';
 import { BURN_ADDRESSES, CONTRACTS, CURRENT_NETWORK, NETWORKS } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
+import { Header } from '@/components/Header';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 type SortKey = keyof Pick<AventurerStats, 'atk' | 'def' | 'hp' | 'mintedAt'>;
 type SortDir = 'asc' | 'desc';
@@ -151,32 +152,7 @@ export default function NFTsPage() {
 
   return (
     <div className="min-h-screen relative text-white">
-      <header className="border-b border-purple-700/40 backdrop-blur-md bg-black/80 relative z-20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-3xl font-bold">DF</span>
-              <div>
-                <h1 className="text-2xl font-bold">DungeonFlip</h1>
-                <div className="text-[10px] text-white/60 -mt-1">NFT Vault</div>
-              </div>
-            </Link>
-            <div className="text-center">
-              <p className="text-xs text-white/60 uppercase tracking-[0.3em]">{CURRENT_NETWORK.name}</p>
-              <p className="text-white font-bold text-lg">NFT Collection</p>
-            </div>
-            <nav className="flex items-center gap-4 justify-end">
-              <Link href="/game" className="text-white/80 hover:text-dungeon-gold transition font-medium">
-                Game
-              </Link>
-              <Link href="/leaderboard" className="text-white/80 hover:text-dungeon-gold transition font-medium">
-                Leaderboard
-              </Link>
-              <ConnectButton />
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-5xl mx-auto space-y-8">

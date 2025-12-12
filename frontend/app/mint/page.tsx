@@ -1,6 +1,5 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -16,6 +15,8 @@ import {
 import { getAventurerClass } from '@/lib/aventurer';
 import { STAT_RANGES } from '@/lib/constants';
 import AventurerNFTABI from '@/lib/contracts/AventurerNFT.json';
+import { Header } from '@/components/Header';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 export default function MintPage() {
   const { address, isConnected } = useAccount();
@@ -88,38 +89,7 @@ export default function MintPage() {
 
   return (
     <div className="min-h-screen relative">
-      <header className="border-b border-purple-700/40 backdrop-blur-md bg-black/80 relative z-20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="grid grid-cols-3 items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 justify-start">
-              <span className="text-3xl drop-shadow-lg">⚔</span>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Dungeon Flip</h1>
-                <div className="text-[10px] text-white/60 -mt-1">Mint Aventurer</div>
-              </div>
-            </Link>
-
-            <div className="flex justify-center">
-              <div className="run-counter relative bg-[#18132f] border border-purple-500/70 shadow-lg">
-                <div className="text-xs text-white/70 uppercase tracking-wider mb-1">NFTs en tu wallet</div>
-                <div className="text-3xl font-bold dot-matrix text-dungeon-gold">
-                  {mounted ? mintedCount : '-'}
-                </div>
-              </div>
-            </div>
-
-            <nav className="flex items-center gap-4 justify-end">
-              <Link href="/game" className="text-white/80 hover:text-dungeon-gold transition font-medium">
-                Game
-              </Link>
-              <Link href="/leaderboard" className="text-white/80 hover:text-dungeon-gold transition font-medium">
-                Leaderboard
-              </Link>
-              <ConnectButton />
-            </nav>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-4xl mx-auto">
