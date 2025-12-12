@@ -66,12 +66,12 @@ export default function LeaderboardPage() {
 
             {isLoading ? (
               <div className="p-12 text-center text-white/60">
-                <div className="animate-spin text-4xl mb-4">ƒ?ü</div>
+                <div className="animate-spin text-4xl mb-4">⏳</div>
                 <p>Loading leaderboard...</p>
               </div>
             ) : !topPlayers || topPlayers.length === 0 ? (
               <div className="p-12 text-center text-white/60">
-                <p className="text-4xl mb-4">ÐY?Å</p>
+                <p className="text-4xl mb-4">🏆</p>
                 <p>No players yet. Be the first to play!</p>
               </div>
             ) : (
@@ -89,9 +89,9 @@ export default function LeaderboardPage() {
                       } transition`}
                     >
                       <div className="w-16 text-center">
-                        {rank === 1 && <span className="text-4xl">ÐY¾Î</span>}
-                        {rank === 2 && <span className="text-4xl">ÐY¾^</span>}
-                        {rank === 3 && <span className="text-4xl">ÐY¾%</span>}
+                        {rank === 1 && <span className="text-4xl">🥇</span>}
+                        {rank === 2 && <span className="text-4xl">🥈</span>}
+                        {rank === 3 && <span className="text-4xl">🥉</span>}
                         {rank > 3 && <span className="text-2xl font-bold text-gray-400">#{rank}</span>}
                       </div>
 
@@ -106,7 +106,7 @@ export default function LeaderboardPage() {
 
                       <div className="text-right">
                         <div className="text-2xl font-bold text-white">
-                          {entry.score.toString()} ÐY'Z
+                          {entry.score.toString()} pts
                         </div>
                         <div className="text-sm text-white/70">{prizePercentage}% of pool</div>
                       </div>
@@ -140,7 +140,7 @@ export default function LeaderboardPage() {
               href="/game"
               className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 px-8 rounded-lg transition transform hover:scale-105"
             >
-              ƒs"‹÷? Play Now and Climb the Ranks!
+              ⚔️ Play Now and Climb the Ranks!
             </Link>
           </div>
         </div>
