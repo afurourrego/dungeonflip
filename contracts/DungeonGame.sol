@@ -3,12 +3,10 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./AventurerNFT.sol";
 import "./FeeDistributor.sol";
 import "./ProgressTracker.sol";
-import "./RewardsPool.sol";
 
 /**
  * @title DungeonGame
@@ -18,7 +16,6 @@ import "./RewardsPool.sol";
  *         owns the NFT can resume the run from the latest checkpoint.
  */
 contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
-    using Math for uint256;
 
     /// @notice Entry fee (0.00001 ETH)
     uint256 public constant ENTRY_FEE = 0.00001 ether;
@@ -65,7 +62,6 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
     AventurerNFT public immutable aventurerNFT;
     FeeDistributor public immutable feeDistributor;
     ProgressTracker public immutable progressTracker;
-    RewardsPool public immutable rewardsPool;
 
     /// @notice tokenId => run data
     mapping(uint256 => RunState) public tokenRuns;
@@ -107,18 +103,15 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
     constructor(
         address _aventurerNFT,
         address payable _feeDistributor,
-        address _progressTracker,
-        address payable _rewardsPool
+        address _progressTracker
     ) Ownable(msg.sender) {
         require(_aventurerNFT != address(0), "invalid NFT");
         require(_feeDistributor != address(0), "invalid distributor");
         require(_progressTracker != address(0), "invalid tracker");
-        require(_rewardsPool != address(0), "invalid pool");
 
         aventurerNFT = AventurerNFT(_aventurerNFT);
         feeDistributor = FeeDistributor(_feeDistributor);
         progressTracker = ProgressTracker(_progressTracker);
-        rewardsPool = RewardsPool(_rewardsPool);
     }
 
     // -------------------------------------------------------------------------

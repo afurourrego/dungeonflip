@@ -124,27 +124,11 @@
     box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
   }
 
-  /* Run Counter - Animated counter display */
+  /* Run Counter - Simplified counter display */
   .run-counter {
-    @apply relative overflow-hidden rounded-xl border border-amber-400/70 px-5 py-3 text-center;
-    background-image: linear-gradient(to bottom right, rgba(120, 53, 15, 0.7), rgba(146, 64, 14, 0.5), rgba(120, 53, 15, 0.3));
-    box-shadow:
-      0 0 18px rgba(251, 191, 36, 0.45),
-      0 0 35px rgba(251, 191, 36, 0.25),
-      inset 0 0 12px rgba(0, 0, 0, 0.45);
-    min-width: 180px;
-  }
-
-  .run-counter::before {
-    content: "";
-    position: absolute;
-    inset: 6px;
-    background-image:
-      radial-gradient(circle at 0 0, rgba(255, 193, 7, 0.08) 1px, transparent 0),
-      radial-gradient(circle at 6px 6px, rgba(255, 193, 7, 0.05) 1px, transparent 0);
-    background-size: 12px 12px;
-    opacity: 0.7;
-    pointer-events: none;
+    @apply relative overflow-hidden rounded-lg px-3 py-2 text-center;
+    background: rgba(120, 53, 15, 0.3);
+    border: 1px solid rgba(251, 191, 36, 0.3);
   }
 
   @keyframes runShine {

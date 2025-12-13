@@ -635,6 +635,50 @@ listo, actualiza toda la paleta de colores del resto de paginas dle sitio web, n
 
 ---
 
-**Total Prompts Documented:** 10 (9 detailed + 1 template + 1 onboarding)
-**Last Updated:** December 12, 2025
-**Status:** ✅ UI Polished with Dungeon Color Palette - Ready for Testing & Deployment
+---
+
+### Prompt 11: Color-Coded Adventure Log & Flickering Fixes
+**Date:** 2025-12-12
+**Tool:** Claude Code
+**Context:** Fix state ordering bug, eliminate flickering during animations, and add color-coded adventure log messages by card type
+
+**Prompt:**
+```
+[User reported error screenshot showing "Cannot access 'isChoosingCard' before initialization"]
+
+User: "parpadea varias veces mientras sucede la animacion" (it flickers multiple times during the animation)
+
+User: "pero sigues mostrando logs de run anteriores" (but you're still showing logs from previous runs)
+```
+
+**Response Summary:**
+- Fixed React state declaration order bug (moved states before useEffect)
+- Added conditional check to skip refetches during card animations
+- Implemented color-coded log messages:
+  - Monster: Red, Trap: Purple, Potion: Green, Treasure: Blue
+- Added narrative text for each event type with emojis
+- Enhanced filtering logic to show only current run logs
+- Fixed adventurer card dimming during loading/reveal
+- Eliminated all flickering issues
+
+**Iteration:** 3 (initial fix + flickering fix + filtering fix)
+**Outcome:** ✅ Success - All bugs fixed, color-coding implemented
+**Files Modified:**
+- frontend/app/game/page.tsx (state order, skip refetch logic)
+- frontend/components/AdventureLog.tsx (color coding, narrative messages)
+- frontend/hooks/useAdventureLog.ts (filtering logic)
+- frontend/components/GameCard.tsx (dimming logic)
+
+**Learning:**
+- React hooks must respect declaration order (states before useEffect usage)
+- Refetch calls during animations cause flickering - add animation state checks
+- Color-coded events dramatically improve log readability
+- Narrative messages add immersion to gameplay
+- Proper run completion detection prevents showing stale logs
+- UX polish requires attention to edge cases (dimming, loading states)
+
+---
+
+**Total Prompts Documented:** 11 (10 detailed + 1 template + 1 onboarding)
+**Last Updated:** December 13, 2025
+**Status:** ✅ UI Polished with Color-Coded Logs - Ready for Contract Review & Deployment

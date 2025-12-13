@@ -19,6 +19,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             accentColorForeground: 'white',
             borderRadius: 'medium',
           })}
+          showRecentTransactions={false}
         >
           {children}
         </RainbowKitProvider>

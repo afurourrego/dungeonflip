@@ -58,8 +58,7 @@ async function main() {
   const dungeonGame = await DungeonGameFactory.deploy(
     nftAddress,
     feeDistributorAddress,
-    progressTrackerAddress,
-    rewardsPoolAddress
+    progressTrackerAddress
   );
   await dungeonGame.waitForDeployment();
   const dungeonGameAddress = await dungeonGame.getAddress();
