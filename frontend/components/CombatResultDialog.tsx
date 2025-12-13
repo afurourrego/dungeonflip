@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 
 export type CombatSummary = {
@@ -9,6 +10,10 @@ export type CombatSummary = {
   heroDefense: number;
   heroMaxHP: number;
   heroDied: boolean;
+  enemyHP?: number;
+  enemyAttack?: number;
+  enemyDefense?: number;
+  battleTurns?: string[];
   gemsBefore: number;
   gemsAfter: number;
   gemsDelta: number;
@@ -24,6 +29,11 @@ interface CombatResultDialogProps {
 }
 
 const ENEMY_IMAGE = '/cards/Enemy card.png';
+const ENEMY_STAT_FALLBACK = {
+  attack: '1–4',
+  defense: '0–1',
+  hp: '3–6',
+} as const;
 
 export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps) {
   const {
@@ -35,6 +45,10 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
     heroDefense,
     heroMaxHP,
     heroDied,
+    enemyHP,
+    enemyAttack,
+    enemyDefense,
+    battleTurns,
     gemsBefore,
     gemsAfter,
     gemsDelta,
@@ -49,6 +63,40 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
     ? 'Your adventurer fell in battle.'
     : `Survived the encounter with ${heroHPAfter}/${heroMaxHP} HP.`;
   const lootLine = gemsDelta > 0 ? `Looted ${gemsDelta} gem${gemsDelta === 1 ? '' : 's'}.` : 'No gems recovered.';
+
+  const [visibleTurnCount, setVisibleTurnCount] = useState(0);
+  const hasTurns = Array.isArray(battleTurns) && battleTurns.length > 0;
+
+  useEffect(() => {
+    if (!hasTurns) {
+      setVisibleTurnCount(0);
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+
+    if (prefersReducedMotion) {
+      setVisibleTurnCount(battleTurns.length);
+      return;
+    }
+
+    setVisibleTurnCount(0);
+    const stepMs = 700;
+    const id = window.setInterval(() => {
+      setVisibleTurnCount((prev) => {
+        const next = prev + 1;
+        if (next >= battleTurns.length) {
+          window.clearInterval(id);
+          return battleTurns.length;
+        }
+        return next;
+      });
+    }, stepMs);
+
+    return () => window.clearInterval(id);
+  }, [battleTurns, hasTurns]);
 
   return (
     <div
@@ -76,8 +124,8 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-          <div className="rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center">
+        <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
+          <div className="h-full rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center flex flex-col">
             <p className="mb-3 text-sm font-semibold text-white">{heroName}</p>
             <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-amber-600/60">
               <Image
@@ -103,16 +151,29 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
             </dl>
           </div>
 
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full border border-amber-600/60 bg-dungeon-bg-darker/70 text-lg font-bold text-dungeon-accent-gold md:flex">
+          <div className="hidden h-10 w-10 self-center items-center justify-center rounded-full border border-amber-600/60 bg-dungeon-bg-darker/70 text-lg font-bold text-dungeon-accent-gold md:flex">
             VS
           </div>
 
-          <div className="rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center">
+          <div className="h-full rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-center flex flex-col">
             <p className="mb-3 text-sm font-semibold text-white">Enemy</p>
             <div className="relative mx-auto h-40 w-28 overflow-hidden rounded-lg border border-amber-600/60">
               <Image src={ENEMY_IMAGE} alt="Enemy card art" fill className="object-cover" />
             </div>
-            <p className="mt-4 text-sm text-white/70">{cardLabel}</p>
+            <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/90">
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Attack</dt>
+                <dd className="font-semibold text-white">{typeof enemyAttack === 'number' ? enemyAttack : ENEMY_STAT_FALLBACK.attack}</dd>
+              </div>
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Defense</dt>
+                <dd className="font-semibold text-white">{typeof enemyDefense === 'number' ? enemyDefense : ENEMY_STAT_FALLBACK.defense}</dd>
+              </div>
+              <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP</dt>
+                <dd className="font-semibold text-white">{typeof enemyHP === 'number' ? enemyHP : ENEMY_STAT_FALLBACK.hp}</dd>
+              </div>
+            </dl>
           </div>
         </div>
 
@@ -140,12 +201,35 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
 
         <div className="mt-6 rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-sm text-white/90">
           <p className="font-semibold uppercase tracking-[0.25em] text-white/70">Battle breakdown</p>
-          <ul className="mt-3 space-y-2 text-xs text-white/80">
-            <li>Attack value applied: {heroAttack}</li>
-            <li>Defense reduced incoming damage to {damageTaken}</li>
-            <li>Remaining vitality: {heroHPAfter}/{heroMaxHP}</li>
-            <li>{lootLine}</li>
-          </ul>
+          {hasTurns ? (
+            <div className="mt-3 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-white/70">Replaying combat...</p>
+                <button
+                  type="button"
+                  className="text-xs font-semibold uppercase tracking-[0.25em] text-dungeon-accent-gold hover:text-white transition"
+                  onClick={() => setVisibleTurnCount(battleTurns!.length)}
+                >
+                  Skip
+                </button>
+              </div>
+              <ul className="space-y-2 text-xs text-white/80">
+                {battleTurns!.slice(0, visibleTurnCount).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-2 text-xs text-white/80">
+              <li>Hero attack stat: {heroAttack}</li>
+              <li>
+                Enemy attack {typeof enemyAttack === 'number' ? enemyAttack : ENEMY_STAT_FALLBACK.attack} vs hero defense {heroDefense}
+              </li>
+              <li>Total damage taken: {damageTaken}</li>
+              <li>Remaining vitality: {heroHPAfter}/{heroMaxHP}</li>
+              <li>{lootLine}</li>
+            </ul>
+          )}
         </div>
       </div>
     </div>

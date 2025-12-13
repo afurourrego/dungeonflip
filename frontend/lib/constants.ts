@@ -1,13 +1,3 @@
-// Contract addresses on Base Sepolia (Redeployed Dec 6, 2025 with resume fix)
-// Sync this file whenever scripts/deploy.ts runs successfully
-export const CONTRACTS = {
-  AVENTURER_NFT: '0x869316eE5E2df6EC73d6bC63fdA59Cce9643336d' as `0x${string}`,
-  FEE_DISTRIBUTOR: '0x6F45110Ee06b35Aca2Eb7b8b62843709afEFDCb6' as `0x${string}`,
-  PROGRESS_TRACKER: '0x5B1807BEbD8a2FcD497fa9159437D84D1F35eA37' as `0x${string}`,
-  REWARDS_POOL: '0x4d6bdD23F6F903BFBE5f6e95373EDE11fe7B0689' as `0x${string}`,
-  DUNGEON_GAME: '0x7b564B6c67b1e87fB098176aca82d2e243C1c016' as `0x${string}`,
-} as const;
-
 // Game constants
 export const GAME_CONFIG = {
   ENTRY_FEE: '0.00001', // ETH
@@ -71,6 +61,36 @@ export const NETWORKS = {
 
 // Current network (change to BASE_MAINNET for production)
 export const CURRENT_NETWORK = NETWORKS.BASE_SEPOLIA;
+
+// Contract addresses (env-overridable).
+// After redeploy, set the `NEXT_PUBLIC_*_ADDRESS(_SEPOLIA)` vars and restart the frontend.
+const envAddress = (value: string | undefined, fallback: `0x${string}`) =>
+  (value && value.startsWith('0x') ? (value as `0x${string}`) : fallback);
+
+const isSepolia = CURRENT_NETWORK.id === NETWORKS.BASE_SEPOLIA.id;
+
+export const CONTRACTS = {
+  AVENTURER_NFT: envAddress(
+    isSepolia ? process.env.NEXT_PUBLIC_AVENTURER_NFT_ADDRESS_SEPOLIA : process.env.NEXT_PUBLIC_AVENTURER_NFT_ADDRESS,
+    '0x869316eE5E2df6EC73d6bC63fdA59Cce9643336d'
+  ),
+  FEE_DISTRIBUTOR: envAddress(
+    isSepolia ? process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS_SEPOLIA : process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS,
+    '0x6F45110Ee06b35Aca2Eb7b8b62843709afEFDCb6'
+  ),
+  PROGRESS_TRACKER: envAddress(
+    isSepolia ? process.env.NEXT_PUBLIC_PROGRESS_TRACKER_ADDRESS_SEPOLIA : process.env.NEXT_PUBLIC_PROGRESS_TRACKER_ADDRESS,
+    '0x5B1807BEbD8a2FcD497fa9159437D84D1F35eA37'
+  ),
+  REWARDS_POOL: envAddress(
+    isSepolia ? process.env.NEXT_PUBLIC_REWARDS_POOL_ADDRESS_SEPOLIA : process.env.NEXT_PUBLIC_REWARDS_POOL_ADDRESS,
+    '0x4d6bdD23F6F903BFBE5f6e95373EDE11fe7B0689'
+  ),
+  DUNGEON_GAME: envAddress(
+    isSepolia ? process.env.NEXT_PUBLIC_DUNGEON_GAME_ADDRESS_SEPOLIA : process.env.NEXT_PUBLIC_DUNGEON_GAME_ADDRESS,
+    '0x7b564B6c67b1e87fB098176aca82d2e243C1c016'
+  ),
+} as const;
 
 // Common burn destinations
 export const BURN_ADDRESSES = {

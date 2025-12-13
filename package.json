@@ -10,6 +10,8 @@
     "test:gas": "REPORT_GAS=true hardhat test",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
     "deploy:mainnet": "hardhat run scripts/deploy.ts --network base",
+    "redeploy:game:sepolia": "hardhat run scripts/redeploy-dungeon-game.ts --network baseSepolia",
+    "redeploy:game:mainnet": "hardhat run scripts/redeploy-dungeon-game.ts --network base",
     "verify:sepolia": "hardhat run scripts/verify.ts --network baseSepolia",
     "verify:mainnet": "hardhat run scripts/verify.ts --network base",
     "node": "hardhat node",

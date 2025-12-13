@@ -152,6 +152,89 @@
     100% { transform: translateX(120%); }
   }
 
+  @keyframes dfNameShimmerSweep {
+    0% {
+      opacity: 0;
+      transform: translate3d(-180%, 0, 0) skewX(-20deg);
+    }
+    10% { opacity: 0; transform: translate3d(-180%, 0, 0) skewX(-20deg); }
+    12% { opacity: 0.9; transform: translate3d(-180%, 0, 0) skewX(-20deg); }
+    34% { opacity: 0.9; transform: translate3d(240%, 0, 0) skewX(-20deg); }
+    38% { opacity: 0; transform: translate3d(240%, 0, 0) skewX(-20deg); }
+    100% {
+      opacity: 0;
+      transform: translate3d(240%, 0, 0) skewX(-20deg);
+    }
+  }
+
+  @keyframes dfNameShimmerBloom {
+    0%, 11% { opacity: 0; }
+    14% { opacity: 0.28; }
+    34% { opacity: 0.28; }
+    42%, 100% { opacity: 0; }
+  }
+
+  .df-name-shimmer {
+    --df-name-shimmer-duration: 4.2s;
+    position: relative;
+    isolation: isolate;
+  }
+
+  /* Subtle light spill around the pill during the sweep */
+  .df-name-shimmer::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+    border-radius: 9999px;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.24), transparent 70%);
+    mix-blend-mode: screen;
+    filter: blur(10px);
+    opacity: 0;
+    z-index: 0;
+    pointer-events: none;
+    will-change: opacity;
+    animation: dfNameShimmerBloom var(--df-name-shimmer-duration) linear infinite;
+  }
+
+  .df-name-shimmer__clip {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    z-index: 1;
+  }
+
+  /* Medal-like sweeping highlight */
+  .df-name-shimmer__clip::after {
+    content: "";
+    position: absolute;
+    top: -70%;
+    bottom: -70%;
+    left: -70%;
+    width: 46%;
+    background:
+      linear-gradient(
+        120deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.25) 35%,
+        rgba(255, 255, 255, 1) 50%,
+        rgba(255, 255, 255, 0.25) 65%,
+        transparent 100%
+      );
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translate3d(-180%, 0, 0) skewX(-20deg);
+    pointer-events: none;
+    will-change: transform, opacity;
+    animation: dfNameShimmerSweep var(--df-name-shimmer-duration) linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .df-name-shimmer::before,
+    .df-name-shimmer__clip::after {
+      animation: none;
+    }
+  }
+
   /* Particle burst animation for card reveals */
   @keyframes particleBurst {
     0% {

@@ -86,6 +86,15 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
     event RunPaused(address indexed player, uint256 indexed tokenId, uint8 room, uint8 hp, uint16 gems);
     event RunExited(address indexed player, uint256 indexed tokenId, uint8 roomsCleared, uint16 gems, uint256 score);
     event RunDied(address indexed player, uint256 indexed tokenId, uint8 room, uint16 gems);
+    /// @notice Emitted when a Monster card is drawn, includes the exact monster stats used for the encounter.
+    event MonsterEncountered(
+        address indexed player,
+        uint256 indexed tokenId,
+        uint8 room,
+        uint8 monsterHP,
+        uint8 monsterATK,
+        uint8 monsterDEF
+    );
     event CardResolved(
         address indexed player,
         uint256 indexed tokenId,
@@ -189,7 +198,11 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         CardType card = _drawCard(random % 100);
 
         if (card == CardType.Monster) {
-            _resolveMonster(run, random);
+            uint8 monsterHP = uint8(3 + (random % 4)); // 3-6 HP
+            uint8 monsterATK = uint8(1 + ((random >> 8) % 4)); // 1-4 ATK
+            uint8 monsterDEF = uint8((random >> 12) % 2); // 0-1 DEF
+            _resolveMonster(run, random, monsterHP, monsterATK, monsterDEF);
+            emit MonsterEncountered(msg.sender, tokenId, run.currentRoom, monsterHP, monsterATK, monsterDEF);
         } else if (card == CardType.Trap) {
             _resolveTrap(run);
         } else if (card == CardType.PotionSmall) {
@@ -338,10 +351,13 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         run.gems += reward;
     }
 
-    function _resolveMonster(RunState storage run, uint256 random) internal {
-        uint8 monsterHP = uint8(3 + (random % 4)); // 3-6 HP
-        uint8 monsterATK = uint8(1 + ((random >> 8) % 4)); // 1-4 ATK
-        uint8 monsterDEF = uint8((random >> 12) % 2); // 0-1 DEF
+    function _resolveMonster(
+        RunState storage run,
+        uint256 random,
+        uint8 monsterHP,
+        uint8 monsterATK,
+        uint8 monsterDEF
+    ) internal {
         uint256 rolls = random >> 16;
 
         for (uint8 round = 0; round < 6; round++) {
@@ -369,14 +385,17 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         }
 
         if (monsterHP == 0) {
-            // Reward: either gems or healing
-            uint8 rewardRoll = uint8(rolls % 3);
-            if (rewardRoll == 0) {
-                run.gems += 15;
-            } else if (rewardRoll == 1) {
-                _heal(run, 1);
+            // Reward: harder to obtain, gems only (15 is the rarest)
+            // Uses remaining `rolls` bits after combat resolution.
+            uint8 rewardRoll = uint8(rolls % 100);
+            if (rewardRoll < 60) {
+                // No reward (60%)
+            } else if (rewardRoll < 90) {
+                run.gems += 5; // 30%
+            } else if (rewardRoll < 98) {
+                run.gems += 10; // 8%
             } else {
-                _heal(run, type(uint8).max);
+                run.gems += 15; // 2%
             }
         } else {
             // Stalemate results in chip damage to player
