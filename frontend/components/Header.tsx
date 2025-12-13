@@ -9,13 +9,32 @@ import { useWeeklyRuns } from '@/hooks/useWeeklyRuns';
 export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { weeklyRuns, isLoading } = useWeeklyRuns();
+  const { prizePoolBalance, isLoading } = useWeeklyRuns();
+
+  // Format ETH balance (wei to ETH with 6 decimals)
+  const formatEthBalance = (wei: bigint) => {
+    try {
+      if (!wei || wei === BigInt(0)) return '0.000000';
+      const eth = Number(wei) / 1e18;
+      if (isNaN(eth)) return '0.000000';
+      return eth.toFixed(6);
+    } catch (error) {
+      console.error('Error formatting ETH balance:', error);
+      return '0.000000';
+    }
+  };
 
   const navLinks = [
     { label: 'Home', href: '/' },
-    { label: 'NFTs', href: '/nfts' },
+    { label: 'Guild', href: '/guild' },
     { label: 'Game', href: '/game' },
     { label: 'Leaderboard', href: '/leaderboard' },
+  ];
+
+  const docsLinks = [
+    { label: 'Introduction', href: '/introduction' },
+    { label: 'Whitepaper', href: '/whitepaper' },
+    { label: 'Roadmap', href: '/roadmap' },
   ];
 
   const isActive = (path: string) => {
@@ -29,7 +48,7 @@ export function Header() {
     <>
       {/* Desktop & Mobile Header */}
       <header className="sticky top-0 z-50 w-full border-b border-amber-600/40 backdrop-blur-md bg-black/90">
-        <nav className="container mx-auto px-4">
+        <nav className="container mx-auto px-4 overflow-visible">
           {/* Desktop Layout: Flexbox to avoid overlap */}
           <div className="hidden md:flex items-center justify-between gap-4 py-4">
             {/* Left: Logo */}
@@ -43,13 +62,13 @@ export function Header() {
               </div>
             </Link>
 
-            {/* Center: Weekly Runs Counter */}
+            {/* Center: Prize Pool Counter */}
             <div className="flex justify-center shrink-0">
               <div className="run-counter">
                 <div className="flex flex-col items-center">
-                  <span className="text-xs text-amber-300/70">Runs This Week</span>
+                  <span className="text-xs text-amber-300/70">Weekly Prize Pool</span>
                   <span className="text-lg font-bold text-dungeon-accent-gold">
-                    {isLoading ? '...' : weeklyRuns}
+                    {isLoading ? '...' : `${formatEthBalance(prizePoolBalance)} ETH`}
                   </span>
                 </div>
               </div>
@@ -70,7 +89,28 @@ export function Header() {
                   {link.label}
                 </Link>
               ))}
-              <ConnectButton />
+
+              {/* Docs Dropdown */}
+              <div className="relative group">
+                <button className="text-sm font-medium text-gray-300 hover:text-dungeon-accent-gold whitespace-nowrap">
+                  Docs ▾
+                </button>
+                <div className="absolute right-0 mt-2 w-48 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100]">
+                  <div className="bg-dungeon-bg-darker border border-amber-600/40 rounded-lg shadow-xl py-3">
+                    {docsLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className="block px-5 py-3 text-sm text-gray-300 hover:bg-amber-600/20 hover:text-dungeon-accent-gold transition-colors whitespace-nowrap"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <ConnectButton showBalance={false} />
             </div>
           </div>
 
@@ -89,7 +129,7 @@ export function Header() {
 
             {/* Right: Hamburger + Wallet */}
             <div className="flex items-center gap-3">
-              <ConnectButton />
+              <ConnectButton showBalance={false} />
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 text-gray-300 hover:text-dungeon-accent-gold transition-colors"
@@ -121,13 +161,13 @@ export function Header() {
             </div>
           </div>
 
-          {/* Mobile: Weekly Runs Counter (below header) */}
+          {/* Mobile: Prize Pool Counter (below header) */}
           <div className="md:hidden pb-3">
             <div className="px-4 py-2 rounded-lg border border-amber-600/40 bg-dungeon-bg-darker/60">
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-amber-300/70">Runs This Week:</span>
+                <span className="text-xs text-amber-300/70">Weekly Prize Pool:</span>
                 <span className="text-sm font-bold text-dungeon-accent-gold">
-                  {isLoading ? '...' : weeklyRuns}
+                  {isLoading ? '...' : `${formatEthBalance(prizePoolBalance)} ETH`}
                 </span>
               </div>
             </div>
@@ -185,6 +225,21 @@ export function Header() {
                   {link.label}
                 </Link>
               ))}
+
+              {/* Docs Section */}
+              <div className="mt-4 pt-4 border-t border-amber-600/20">
+                <p className="px-4 text-xs text-amber-300/70 uppercase tracking-wider mb-2">Documentation</p>
+                {docsLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-4 py-2 text-sm text-gray-300 hover:bg-dungeon-bg-darker/60 hover:text-dungeon-accent-gold transition-colors rounded-lg"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </nav>
           </div>
         </>

@@ -6,7 +6,7 @@ import RewardsPoolABI from '@/lib/contracts/RewardsPool.json';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 
 /**
- * Hook to fetch weekly runs count and week info
+ * Hook to fetch weekly runs count, week info, and prize pool balance
  * Fetches from ProgressTracker and RewardsPool contracts
  */
 export function useWeeklyRuns() {
@@ -26,6 +26,13 @@ export function useWeeklyRuns() {
     address: CONTRACTS.REWARDS_POOL,
     abi: RewardsPoolABI.abi,
     functionName: 'timeUntilNextWeek',
+  });
+
+  // Get current prize pool balance from RewardsPool contract
+  const { data: prizePoolBalance } = useReadContract({
+    address: CONTRACTS.REWARDS_POOL,
+    abi: RewardsPoolABI.abi,
+    functionName: 'getCurrentPoolBalance',
   });
 
   useEffect(() => {
@@ -81,6 +88,7 @@ export function useWeeklyRuns() {
     weeklyRuns,
     currentWeek: currentWeek ? Number(currentWeek) : 1,
     timeUntilNextWeek: timeUntilNextWeek ? Number(timeUntilNextWeek) : 0,
+    prizePoolBalance: prizePoolBalance ? BigInt(prizePoolBalance.toString()) : BigInt(0),
     isLoading,
   };
 }

@@ -178,11 +178,19 @@ npm run test:coverage # Coverage report
 
 ## 📚 Documentation
 
-- **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** - Complete development roadmap and architecture
-- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Technical architecture details
-- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Deployment guide
-- **[GAME_MECHANICS.md](./docs/GAME_MECHANICS.md)** - Game rules and mechanics
-- **[API_REFERENCE.md](./docs/API_REFERENCE.md)** - Smart contract API reference
+- **[INTRODUCTION.md](./docs/INTRODUCTION.md)** - Player onboarding and how-to-play guide
+- **[WHITEPAPER.md](./docs/WHITEPAPER.md)** - Complete technical and economic documentation
+- **[ROADMAP.md](./docs/ROADMAP.md)** - Development phases and future plans
+- **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** - Current project status and metrics
+- **[PROJECT_PLAN.md](./PROJECT_PLAN.md)** - Original development roadmap
+- **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)** - Deployment guide and contract addresses
+
+**Web Pages:**
+- `/introduction` - Interactive introduction page
+- `/whitepaper` - Web version of whitepaper
+- `/roadmap` - Interactive roadmap
+- `/game` - Play the game
+- `/leaderboard` - View current standings
 
 ---
 
@@ -205,18 +213,18 @@ All AI prompts, iterations, and challenges are documented in the `ai_logs/` fold
 ## 🚀 Deployment & Live Contracts
 
 ### Base Sepolia (Testnet)
-- **Status:** ✅ Live custodial build (Dec 7, 2025)
+- **Status:** ✅ Live (Latest deploy: Dec 13, 2025)
 - **Contracts:**
 
-| Contract | Address |
-| --- | --- |
-| AventurerNFT | `0x23327A831E559549d7584218078538c547a10E67` |
-| FeeDistributor | `0xAa26dBcd21D32af565Fb336031171F4967fB3ca4` |
-| ProgressTracker | `0x7cA2D8Ab12fB9116Dd5c31bb80e40544c6375E7E` |
-| RewardsPool | `0x5e7268E1Bc3419b3Dd5252673275FfE7AF51dDbb` |
-| DungeonGame | `0x9E4cD14a37959b6852951fcfbf495d838e9e36A8` |
+| Contract | Address | Explorer |
+| --- | --- | --- |
+| AventurerNFT | `0x07753598E13Bce7388bD66F1016155684cc3293B` | [View →](https://sepolia.basescan.org/address/0x07753598E13Bce7388bD66F1016155684cc3293B) |
+| DungeonGame | `0x066d926eA2b3Fd48BC44e0eE8b5EA14474c40746` | [View →](https://sepolia.basescan.org/address/0x066d926eA2b3Fd48BC44e0eE8b5EA14474c40746) |
+| FeeDistributor | `0xD00c128486dE1C13074769922BEBe735F378A290` | [View →](https://sepolia.basescan.org/address/0xD00c128486dE1C13074769922BEBe735F378A290) |
+| ProgressTracker | `0x623435ECC6b3B418d79EE396298aF59710632595` | [View →](https://sepolia.basescan.org/address/0x623435ECC6b3B418d79EE396298aF59710632595) |
+| RewardsPool | `0x9A19912DDb7e71b4dccC9036f9395D88979A4F17` | [View →](https://sepolia.basescan.org/address/0x9A19912DDb7e71b4dccC9036f9395D88979A4F17) |
 
-- **Frontend:** Deploy locally (`frontend/`) or point hosting to these addresses.
+- **Frontend:** [Coming Soon - Vercel Deploy]
 
 ### Base Mainnet
 - **Status:** ⏳ Not deployed yet (pending QA + audit)
@@ -275,9 +283,9 @@ Built by passionate developers leveraging AI tools to create innovative Web3 exp
 
 ---
 
-**Status:** 🧪 Testnet QA in progress  
-**Version:** 0.1.0  
-**Last Updated:** December 7, 2025
+**Status:** 🟢 Ready for Hackathon Submission
+**Version:** 1.0.0
+**Last Updated:** December 13, 2025
 
 ---
 

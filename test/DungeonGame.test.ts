@@ -46,8 +46,7 @@ describe("DungeonGame", function () {
     dungeonGame = await DungeonGameFactory.deploy(
       await aventurerNFT.getAddress(),
       await feeDistributor.getAddress(),
-      await progressTracker.getAddress(),
-      await rewardsPool.getAddress()
+      await progressTracker.getAddress()
     ) as unknown as DungeonGame;
 
     // Configure contracts
@@ -78,7 +77,6 @@ describe("DungeonGame", function () {
       expect(await dungeonGame.aventurerNFT()).to.equal(await aventurerNFT.getAddress());
       expect(await dungeonGame.feeDistributor()).to.equal(await feeDistributor.getAddress());
       expect(await dungeonGame.progressTracker()).to.equal(await progressTracker.getAddress());
-      expect(await dungeonGame.rewardsPool()).to.equal(await rewardsPool.getAddress());
     });
 
     it("Should not be paused on deployment", async function () {

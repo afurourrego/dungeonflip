@@ -137,15 +137,15 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
             </div>
             <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/90">
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Attack</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">ATK</dt>
                 <dd className="font-semibold text-white">{heroAttack}</dd>
               </div>
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Defense</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">DEF</dt>
                 <dd className="font-semibold text-white">{heroDefense}</dd>
               </div>
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Max HP</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP</dt>
                 <dd className="font-semibold text-white">{heroMaxHP}</dd>
               </div>
             </dl>
@@ -162,16 +162,16 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
             </div>
             <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/90">
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Attack</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">ATK</dt>
                 <dd className="font-semibold text-white">{typeof enemyAttack === 'number' ? enemyAttack : ENEMY_STAT_FALLBACK.attack}</dd>
               </div>
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">Defense</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">DEF</dt>
                 <dd className="font-semibold text-white">{typeof enemyDefense === 'number' ? enemyDefense : ENEMY_STAT_FALLBACK.defense}</dd>
               </div>
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP</dt>
-                <dd className="font-semibold text-white">{typeof enemyHP === 'number' ? enemyHP : ENEMY_STAT_FALLBACK.hp}</dd>
+                <dd className="font-semibold text-white">{enemyHP ?? '?'}</dd>
               </div>
             </dl>
           </div>
