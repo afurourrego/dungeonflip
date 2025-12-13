@@ -1,5 +1,6 @@
 import { usePublicClient } from 'wagmi';
 import { useEffect, useState } from 'react';
+import { decodeEventLog } from 'viem';
 import { CONTRACTS } from '@/lib/constants';
 import RewardsPoolABI from '@/lib/contracts/RewardsPool.json';
 
@@ -64,7 +65,14 @@ export function useRewardsHistory() {
         const processedDistributions: RewardDistribution[] = [];
 
         for (const log of eventLogs) {
-          const { week, winners, amounts } = log.args as {
+          // Decode the log manually since getLogs doesn't automatically decode
+          const decoded = decodeEventLog({
+            abi: RewardsPoolABI.abi,
+            data: log.data,
+            topics: log.topics,
+          });
+
+          const { week, winners, amounts } = decoded.args as unknown as {
             week: bigint;
             winners: string[];
             amounts: bigint[];

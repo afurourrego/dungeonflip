@@ -253,7 +253,8 @@ export default function NFTsPage() {
       setBurnToken(null);
       refresh();
     }
-  }, [isSuccess, refresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess]);
 
   const handleSendToBurn = async (tokenId: bigint) => {
     if (!address) return;
