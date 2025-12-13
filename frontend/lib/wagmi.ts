@@ -8,8 +8,8 @@ export const config = createConfig({
     injected(),
   ],
   transports: {
-    [baseSepolia.id]: http(),
-    [base.id]: http(),
+    [baseSepolia.id]: http('https://sepolia.base.org'),
+    [base.id]: http('https://mainnet.base.org'),
   },
 });
 

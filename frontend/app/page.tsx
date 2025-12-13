@@ -68,10 +68,10 @@ export default function Home() {
                 </Link>
               )}
               <Link
-                href="/nfts"
+                href="/guild"
                 className="bg-dungeon-bg-darker border border-amber-600/60 text-white font-semibold py-3 px-6 rounded-lg transition hover:border-white"
               >
-                View NFTs
+                View Guild
               </Link>
             </div>
           </div>

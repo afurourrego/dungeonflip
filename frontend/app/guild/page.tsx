@@ -13,6 +13,8 @@ import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 import { Header } from '@/components/Header';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { RunStatus } from '@/hooks/useGame';
+import { usePlayerRewardsHistory } from '@/hooks/useRewardsHistory';
+import { formatEther } from 'viem';
 
 type SortKey = keyof Pick<AventurerStats, 'atk' | 'def' | 'hp' | 'mintedAt'>;
 type SortDir = 'asc' | 'desc';
@@ -37,6 +39,7 @@ export default function NFTsPage() {
   const publicClient = usePublicClient();
   const { data: nfts = [], isLoading, error, refresh } = useWalletNFTs(address);
   const { data: totalSupply } = useTotalSupply();
+  const { playerRewards, isLoading: isLoadingRewards } = usePlayerRewardsHistory(address);
 
   // Get owned token IDs for validation
   const ownedTokenIds = useMemo(() => nfts.map((nft) => nft.tokenId), [nfts]);
@@ -539,6 +542,73 @@ export default function NFTsPage() {
               </div>
             )}
           </div>
+
+          {/* Player Rewards History */}
+          {mounted && isConnected && address && (
+            <div className="card rounded-2xl p-6 shadow-2xl">
+              <h3 className="text-2xl font-bold mb-4 text-center text-dungeon-accent-gold">
+                🏆 Your Rewards History
+              </h3>
+
+              {isLoadingRewards ? (
+                <div className="text-center text-white/60 py-8">Loading your rewards...</div>
+              ) : playerRewards.length === 0 ? (
+                <div className="text-center text-white/60 py-8">
+                  <p>You haven't won any prizes yet.</p>
+                  <p className="text-sm mt-2">Climb the leaderboard to win weekly prizes!</p>
+                  <Link
+                    href="/leaderboard"
+                    className="inline-block mt-4 text-dungeon-accent-gold hover:text-dungeon-accent-amber transition-colors"
+                  >
+                    View Leaderboard →
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-dungeon-bg-darker rounded-lg p-4 border border-dungeon-accent-gold/60">
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm text-white/70">Total Earned</div>
+                      <div className="text-xl font-bold text-dungeon-accent-gold">
+                        {formatEther(
+                          playerRewards.reduce((sum, reward) => sum + reward.amount, BigInt(0))
+                        )} ETH
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {playerRewards.map((reward, index) => (
+                      <div
+                        key={index}
+                        className="bg-dungeon-bg-darker rounded-lg p-4 border border-amber-600/40 flex justify-between items-center"
+                      >
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">
+                              {reward.rank === 1 ? '🥇' : reward.rank === 2 ? '🥈' : reward.rank === 3 ? '🥉' : '🏆'}
+                            </span>
+                            <div>
+                              <div className="font-bold text-white">
+                                Week {reward.week} - Rank #{reward.rank}
+                              </div>
+                              <div className="text-xs text-white/50">
+                                {formatDate(BigInt(reward.timestamp))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-dungeon-accent-amber">
+                            +{formatEther(reward.amount)} ETH
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
     </div>

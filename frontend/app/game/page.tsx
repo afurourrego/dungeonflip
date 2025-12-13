@@ -1567,7 +1567,7 @@ export default function GamePage() {
                         </p>
                       ) : (
                         <Link
-                          href="/nfts"
+                          href="/guild"
                           className="inline-block text-xs text-dungeon-accent-orange hover:text-dungeon-accent-gold transition-colors"
                         >
                           Change adventurer →
