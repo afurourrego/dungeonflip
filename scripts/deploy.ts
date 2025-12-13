@@ -8,7 +8,13 @@ import { ethers } from "hardhat";
 async function main() {
   console.log("🚀 Starting DungeonFlip deployment to Base Sepolia...\n");
 
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  if (!signers.length) {
+    throw new Error(
+      "No deployer account available. Set PRIVATE_KEY in .env (without 0x) and fund it with Base Sepolia ETH."
+    );
+  }
+  const [deployer] = signers;
   console.log("📝 Deploying contracts with account:", deployer.address);
   
   const balance = await ethers.provider.getBalance(deployer.address);

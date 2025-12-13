@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useWatchContractEvent, usePublicClient } from 'wagmi';
-import { decodeEventLog } from 'viem';
+import { decodeEventLog, decodeFunctionData, encodeAbiParameters, keccak256, parseAbiItem } from 'viem';
 import { useNFTBalance, useNFTOwnerTokens, useAventurerStats, useDungeonApproval, useWalletNFTs } from '@/hooks/useNFT';
 import { useSelectedToken } from '@/hooks/useSelectedToken';
 import { useGameContract, useRunState, RunStatus, useEntryFee } from '@/hooks/useGame';
@@ -33,12 +33,37 @@ const STATUS_COPY: Record<RunStatus, string> = {
 const CARD_LABELS = ['Monster', 'Trap', 'Potion +1', 'Full Heal', 'Treasure'];
 const CARD_EMOJIS = ['👹', '🕸️', '🧪', '💖', '💎'];
 
+const asDecodeTopics = (topics: readonly `0x${string}`[]) =>
+  topics as unknown as [] | [`0x${string}`, ...`0x${string}`[]];
+
+const toNum = (value: unknown) =>
+  typeof value === 'bigint' ? Number(value) : typeof value === 'number' ? value : 0;
+
+const parseRunTuple = (raw: readonly unknown[]) => ({
+  currentRoom: toNum(raw[3]),
+  currentHP: toNum(raw[4]),
+  maxHP: toNum(raw[5]),
+  atk: toNum(raw[6]),
+  def: toNum(raw[7]),
+  gems: toNum(raw[8]),
+  lastSeed: typeof raw[9] === 'bigint' ? (raw[9] as bigint) : typeof raw[9] === 'number' ? BigInt(raw[9] as number) : BigInt(0),
+});
+
 type CardFeedItem = {
   txHash: string;
   cardType: number;
   room: number;
   hp: number;
   gems: number;
+  enemyHP?: number;
+  enemyAttack?: number;
+  enemyDefense?: number;
+  enemyRandom?: bigint;
+  heroHPBefore?: number;
+  heroMaxHP?: number;
+  heroAttack?: number;
+  heroDefense?: number;
+  gemsBefore?: number;
 };
 
 type CombatSnapshot = {
@@ -65,6 +90,108 @@ const resolveCardVariant = (cardType?: number): AventurerCardVariant => {
     default:
       return 'card';
   }
+};
+
+const buildMonsterBattleTurns = (params: {
+  random: bigint;
+  heroAtk: number;
+  heroDef: number;
+  heroHpBefore: number;
+  heroMaxHp: number;
+  enemyHp: number;
+  enemyAtk: number;
+  enemyDef: number;
+  heroHpAfter: number;
+  gemsBefore: number;
+  gemsAfter: number;
+}) => {
+  const arrow = '\u2192';
+  const {
+    random,
+    heroAtk,
+    heroDef,
+    heroHpBefore,
+    heroMaxHp,
+    enemyHp: enemyHpStart,
+    enemyAtk,
+    enemyDef,
+    heroHpAfter,
+    gemsBefore,
+    gemsAfter,
+  } = params;
+
+  let rolls = random >> BigInt(16);
+  let heroHp = heroHpBefore;
+  let enemyHp = enemyHpStart;
+  let simulatedGemsAfter = gemsBefore;
+
+  const lines: string[] = [];
+  const heroDmgOnHit = heroAtk > enemyDef ? heroAtk - enemyDef : 1;
+  const enemyDmgOnHit = enemyAtk > heroDef ? enemyAtk - heroDef : 1;
+  lines.push(`Enemy stats: ATK ${enemyAtk} | DEF ${enemyDef} | HP ${enemyHpStart}`);
+  lines.push(`Your damage on hit: ${heroDmgOnHit} (ATK ${heroAtk} - DEF ${enemyDef})`);
+  lines.push(`Enemy damage on hit: ${enemyDmgOnHit} (ATK ${enemyAtk} - DEF ${heroDef})`);
+
+  for (let round = 1; round <= 6; round += 1) {
+    const heroRoll = Number(rolls & BigInt(255)) % 100;
+    const heroHits = heroRoll < 80;
+    rolls >>= BigInt(8);
+
+    if (heroHits) {
+      const dmg = heroAtk > enemyDef ? heroAtk - enemyDef : 1;
+      const nextEnemyHp = Math.max(enemyHp - dmg, 0);
+      lines.push(`Round ${round}: You hit for ${dmg} (Enemy HP ${enemyHp} ${arrow} ${nextEnemyHp})`);
+      enemyHp = nextEnemyHp;
+    } else {
+      lines.push(`Round ${round}: You miss`);
+    }
+
+    if (enemyHp === 0) break;
+
+    const enemyRoll = Number(rolls & BigInt(255)) % 100;
+    const enemyHits = enemyRoll < 70;
+    rolls >>= BigInt(8);
+
+    if (enemyHits) {
+      const dmg = enemyAtk > heroDef ? enemyAtk - heroDef : 1;
+      const nextHeroHp = Math.max(heroHp - dmg, 0);
+      lines.push(`Round ${round}: Enemy hits for ${dmg} (Your HP ${heroHp} ${arrow} ${nextHeroHp})`);
+      heroHp = nextHeroHp;
+      if (heroHp === 0) break;
+    } else {
+      lines.push(`Round ${round}: Enemy misses`);
+    }
+  }
+
+  // If the hero died, the contract returns immediately (no reward, no stalemate chip damage).
+  if (heroHp === 0) {
+    if (heroHpAfter !== 0) return [];
+    lines.push(`Outcome: Defeat (HP 0/${heroMaxHp})`);
+    return lines;
+  }
+
+  if (enemyHp === 0) {
+    const rewardRoll = Number(rolls % BigInt(100));
+    if (rewardRoll >= 60 && rewardRoll < 90) simulatedGemsAfter += 5;
+    else if (rewardRoll >= 90 && rewardRoll < 98) simulatedGemsAfter += 10;
+    else if (rewardRoll >= 98) simulatedGemsAfter += 15;
+
+    const gemDelta = simulatedGemsAfter - gemsBefore;
+    lines.push(gemDelta > 0 ? `Reward: +${gemDelta} gems` : 'Reward: none');
+    lines.push(`Outcome: Victory (HP ${heroHpAfter}/${heroMaxHp})`);
+  } else if (heroHp > 0) {
+    const before = heroHp;
+    heroHp = heroHp > 1 ? heroHp - 1 : 0;
+    lines.push(`Stalemate: chip damage -1 (Your HP ${before} ${arrow} ${heroHp})`);
+    lines.push(`Outcome: ${heroHpAfter === 0 ? 'Defeat' : 'Victory'} (HP ${heroHpAfter}/${heroMaxHp})`);
+  }
+
+  // Guardrail: if we couldn't exactly reproduce the on-chain result, hide the replay rather than showing wrong info.
+  if (heroHpAfter !== heroHp || gemsAfter !== simulatedGemsAfter) {
+    return [];
+  }
+
+  return lines;
 };
 
 export default function GamePage() {
@@ -313,13 +440,33 @@ export default function GamePage() {
 
       if (entry.cardType === 0) {
         const snapshot = combatSnapshotRef.current;
-        const hpBefore = snapshot?.hpBefore ?? toNumber(runState?.currentHP ?? stats?.hp);
-        const gemsBefore = snapshot?.gemsBefore ?? (runState?.gems ?? entry.gems);
-        const heroAttack = snapshot?.heroAttack ?? (runState?.atk ?? toNumber(stats?.atk));
-        const heroDefense = snapshot?.heroDefense ?? (runState?.def ?? toNumber(stats?.def));
-        const heroMaxHP = snapshot?.heroMaxHP ?? (runState?.maxHP ?? toNumber(stats?.hp));
+        const hpBefore = entry.heroHPBefore ?? snapshot?.hpBefore ?? toNumber(runState?.currentHP ?? stats?.hp);
+        const gemsBefore = entry.gemsBefore ?? snapshot?.gemsBefore ?? (runState?.gems ?? entry.gems);
+        const heroAttack = entry.heroAttack ?? snapshot?.heroAttack ?? (runState?.atk ?? toNumber(stats?.atk));
+        const heroDefense = entry.heroDefense ?? snapshot?.heroDefense ?? (runState?.def ?? toNumber(stats?.def));
+        const heroMaxHP = entry.heroMaxHP ?? snapshot?.heroMaxHP ?? (runState?.maxHP ?? toNumber(stats?.hp));
         const damageTaken = Math.max(0, hpBefore - entry.hp);
         const gemsDelta = entry.gems - gemsBefore;
+
+        const battleTurns =
+          typeof entry.enemyRandom === 'bigint' &&
+          typeof entry.enemyHP === 'number' &&
+          typeof entry.enemyAttack === 'number' &&
+          typeof entry.enemyDefense === 'number'
+            ? buildMonsterBattleTurns({
+                random: entry.enemyRandom,
+                heroAtk: heroAttack,
+                heroDef: heroDefense,
+                heroHpBefore: hpBefore,
+                heroMaxHp: heroMaxHP,
+                enemyHp: entry.enemyHP,
+                enemyAtk: entry.enemyAttack,
+                enemyDef: entry.enemyDefense,
+                heroHpAfter: entry.hp,
+                gemsBefore,
+                gemsAfter: entry.gems,
+              })
+            : undefined;
 
         setCombatSummary({
           room: entry.room,
@@ -330,6 +477,10 @@ export default function GamePage() {
           heroDefense,
           heroMaxHP,
           heroDied: entry.hp <= 0,
+          enemyHP: entry.enemyHP,
+          enemyAttack: entry.enemyAttack,
+          enemyDefense: entry.enemyDefense,
+          battleTurns,
           gemsBefore,
           gemsAfter: entry.gems,
           gemsDelta,
@@ -356,6 +507,486 @@ export default function GamePage() {
     setCombatSummary(null);
   }, []);
 
+  const extractEnemyStatsFromLogs = useCallback((logs: readonly { data: `0x${string}`; topics: readonly `0x${string}`[] }[]) => {
+    for (const log of logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: DungeonGameABI.abi,
+          data: log.data,
+          topics: asDecodeTopics(log.topics),
+        });
+
+        if (decoded.eventName !== 'MonsterEncountered') continue;
+        const args = decoded.args as Record<string, unknown> | undefined;
+        if (!args || Array.isArray(args)) continue;
+
+        const hp = args.monsterHP;
+        const atk = args.monsterATK;
+        const def = args.monsterDEF;
+        if (typeof hp !== 'bigint' && typeof hp !== 'number') return null;
+        if (typeof atk !== 'bigint' && typeof atk !== 'number') return null;
+        if (typeof def !== 'bigint' && typeof def !== 'number') return null;
+
+        return {
+          enemyHP: Number(hp),
+          enemyAttack: Number(atk),
+          enemyDefense: Number(def),
+          enemyRandom: undefined,
+        };
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }, []);
+
+  const computeEnemyStatsFromTxContext = useCallback(
+    async (input: {
+      txHash: `0x${string}`;
+      blockNumber: bigint;
+      txIndex: number;
+      logs: readonly { data: `0x${string}`; topics: readonly `0x${string}`[] }[];
+      tokenId: bigint;
+      player: `0x${string}`;
+      heroHpBefore: number;
+      heroAtk: number;
+      heroDef: number;
+      gemsBefore: number;
+      expectedHpAfter: number;
+      expectedGemsAfter: number;
+    }) => {
+      if (!publicClient) return null;
+
+      const fromLogs = extractEnemyStatsFromLogs(input.logs);
+
+      const deriveEnemyFromRandom = (random: bigint) => ({
+        enemyHP: Number(BigInt(3) + (random % BigInt(4))),
+        enemyAttack: Number(BigInt(1) + ((random >> BigInt(8)) % BigInt(4))),
+        enemyDefense: Number((random >> BigInt(12)) % BigInt(2)),
+        enemyRandom: random,
+      });
+
+      const drawCard = (roll: number) => {
+        if (roll < 40) return 0; // Monster
+        if (roll < 55) return 1; // Trap
+        if (roll < 70) return 2; // PotionSmall
+        if (roll < 85) return 3; // PotionFull
+        return 4; // Treasure
+      };
+
+      const simulateMonsterOutcome = (random: bigint) => {
+        const monsterHPStart = BigInt(3) + (random % BigInt(4));
+        const monsterATK = BigInt(1) + ((random >> BigInt(8)) % BigInt(4));
+        const monsterDEF = (random >> BigInt(12)) % BigInt(2);
+
+        let monsterHP = monsterHPStart;
+        let heroHP = BigInt(input.heroHpBefore);
+        let heroGems = BigInt(input.gemsBefore);
+        let rolls = random >> BigInt(16);
+
+        const heroAtk = BigInt(input.heroAtk);
+        const heroDef = BigInt(input.heroDef);
+
+        for (let round = 0; round < 6; round += 1) {
+          const playerHits = (rolls & BigInt(255)) % BigInt(100) < BigInt(80);
+          rolls >>= BigInt(8);
+
+          if (playerHits) {
+            const dmg = heroAtk > monsterDEF ? heroAtk - monsterDEF : BigInt(1);
+            monsterHP = dmg >= monsterHP ? BigInt(0) : monsterHP - dmg;
+          }
+
+          if (monsterHP === BigInt(0)) break;
+
+          const monsterHits = (rolls & BigInt(255)) % BigInt(100) < BigInt(70);
+          rolls >>= BigInt(8);
+
+          if (monsterHits) {
+            const dmg = monsterATK > heroDef ? monsterATK - heroDef : BigInt(1);
+            heroHP = dmg >= heroHP ? BigInt(0) : heroHP - dmg;
+            if (heroHP === BigInt(0)) {
+              return {
+                hpAfter: 0,
+                gemsAfter: Number(heroGems),
+                monsterHPStart: Number(monsterHPStart),
+                monsterATK: Number(monsterATK),
+                monsterDEF: Number(monsterDEF),
+              };
+            }
+          }
+        }
+
+        if (monsterHP === BigInt(0)) {
+          const rewardRoll = Number(rolls % BigInt(100));
+          if (rewardRoll >= 60 && rewardRoll < 90) heroGems += BigInt(5);
+          else if (rewardRoll >= 90 && rewardRoll < 98) heroGems += BigInt(10);
+          else if (rewardRoll >= 98) heroGems += BigInt(15);
+        } else if (heroHP > BigInt(0)) {
+          heroHP = heroHP > BigInt(1) ? heroHP - BigInt(1) : BigInt(0);
+        }
+
+        return {
+          hpAfter: Number(heroHP),
+          gemsAfter: Number(heroGems),
+          monsterHPStart: Number(monsterHPStart),
+          monsterATK: Number(monsterATK),
+          monsterDEF: Number(monsterDEF),
+        };
+      };
+
+      try {
+        const [block, tx] = await Promise.all([
+          publicClient.getBlock({ blockNumber: input.blockNumber }),
+          publicClient.getTransaction({ hash: input.txHash }),
+        ]);
+
+        const randaoHex =
+          (block as unknown as { mixHash?: `0x${string}`; prevRandao?: `0x${string}` }).mixHash ??
+          (block as unknown as { prevRandao?: `0x${string}` }).prevRandao;
+        if (!randaoHex) return fromLogs;
+        const prevrandao = BigInt(randaoHex);
+
+        const nextSeed = (prevSeed: bigint, player: `0x${string}`, salt: bigint) => {
+          const encoded = encodeAbiParameters(
+            [
+              { type: 'uint256' },
+              { type: 'uint256' },
+              { type: 'address' },
+              { type: 'uint256' },
+              { type: 'uint256' },
+            ],
+            [prevrandao, block.timestamp, player, salt, prevSeed]
+          );
+          return BigInt(keccak256(encoded));
+        };
+
+        const txInput =
+          (tx as unknown as { input?: `0x${string}`; data?: `0x${string}` }).input ??
+          (tx as unknown as { data?: `0x${string}` }).data;
+
+        const decodeChooseCardIndex = async (txHash: `0x${string}`) => {
+          const txForHash = txHash === input.txHash ? tx : await publicClient.getTransaction({ hash: txHash });
+          const data =
+            (txForHash as unknown as { input?: `0x${string}`; data?: `0x${string}` }).input ??
+            (txForHash as unknown as { data?: `0x${string}` }).data;
+          if (!data) return null;
+          try {
+            const decoded = decodeFunctionData({ abi: DungeonGameABI.abi, data });
+            if (decoded.functionName !== 'chooseCard') return null;
+            const cardIndexArg = decoded.args?.[1];
+            if (typeof cardIndexArg === 'bigint') return Number(cardIndexArg);
+            if (typeof cardIndexArg === 'number') return cardIndexArg;
+            return null;
+          } catch {
+            return null;
+          }
+        };
+
+        // Compute the exact prevSeed for this tx, even if there were other actions for the same token in the same block.
+        const prevBlock = input.blockNumber > BigInt(0) ? input.blockNumber - BigInt(1) : BigInt(0);
+        const runBeforeRaw = (await publicClient.readContract({
+          address: CONTRACTS.DUNGEON_GAME,
+          abi: DungeonGameABI.abi,
+          functionName: 'tokenRuns',
+          args: [input.tokenId],
+          blockNumber: prevBlock,
+        })) as readonly unknown[];
+        let seedBeforeTx = parseRunTuple(runBeforeRaw).lastSeed;
+
+        try {
+          const runStartedEvent = parseAbiItem(
+            'event RunStarted(address indexed player, uint256 indexed tokenId, uint8 room, bool resumed)'
+          );
+          const cardResolvedEvent = parseAbiItem(
+            'event CardResolved(address indexed player, uint256 indexed tokenId, uint8 cardType, uint8 room, uint8 hp, uint16 gems)'
+          );
+
+          const [runStartedLogs, cardResolvedLogs] = await Promise.all([
+            publicClient.getLogs({
+              address: CONTRACTS.DUNGEON_GAME,
+              event: runStartedEvent,
+              args: { tokenId: input.tokenId },
+              fromBlock: input.blockNumber,
+              toBlock: input.blockNumber,
+            }),
+            publicClient.getLogs({
+              address: CONTRACTS.DUNGEON_GAME,
+              event: cardResolvedEvent,
+              args: { tokenId: input.tokenId },
+              fromBlock: input.blockNumber,
+              toBlock: input.blockNumber,
+            }),
+          ]);
+
+          const seedAdvancers: Array<
+            | { txHash: `0x${string}`; txIndex: number; kind: 'runStarted'; player: `0x${string}` }
+            | { txHash: `0x${string}`; txIndex: number; kind: 'cardResolved'; player: `0x${string}` }
+          > = [];
+
+          for (const log of runStartedLogs as unknown as Array<{ transactionHash?: `0x${string}`; transactionIndex?: bigint | number; args?: { player: `0x${string}` } }>) {
+            if (!log.transactionHash) continue;
+            const txIndex = typeof log.transactionIndex === 'bigint' ? Number(log.transactionIndex) : (log.transactionIndex ?? 0);
+            const player = log.args?.player;
+            if (!player) continue;
+            seedAdvancers.push({ txHash: log.transactionHash, txIndex, kind: 'runStarted', player });
+          }
+
+          for (const log of cardResolvedLogs as unknown as Array<{ transactionHash?: `0x${string}`; transactionIndex?: bigint | number; args?: { player: `0x${string}` } }>) {
+            if (!log.transactionHash) continue;
+            const txIndex = typeof log.transactionIndex === 'bigint' ? Number(log.transactionIndex) : (log.transactionIndex ?? 0);
+            const player = log.args?.player;
+            if (!player) continue;
+            seedAdvancers.push({ txHash: log.transactionHash, txIndex, kind: 'cardResolved', player });
+          }
+
+          seedAdvancers.sort((a, b) => a.txIndex - b.txIndex);
+
+          for (const adv of seedAdvancers) {
+            if (adv.txIndex >= input.txIndex) break;
+            if (adv.kind === 'runStarted') {
+              seedBeforeTx = nextSeed(seedBeforeTx, adv.player, input.tokenId);
+              continue;
+            }
+
+            const idx = await decodeChooseCardIndex(adv.txHash);
+            if (idx === null) continue;
+            const salt = input.tokenId ^ BigInt(idx);
+            seedBeforeTx = nextSeed(seedBeforeTx, adv.player, salt);
+          }
+        } catch {
+          // If block log indexing fails, we can still often succeed with the prev-block seed.
+        }
+
+        const mergeLogs = (derived: ReturnType<typeof deriveEnemyFromRandom>) =>
+          fromLogs ? { ...fromLogs, enemyRandom: derived.enemyRandom } : derived;
+
+        const tryIndex = (cardIndex: number) => {
+          const salt = input.tokenId ^ BigInt(cardIndex);
+          const random = nextSeed(seedBeforeTx, input.player, salt);
+          const cardType = drawCard(Number(random % BigInt(100)));
+          if (cardType !== 0) return null;
+
+          const sim = simulateMonsterOutcome(random);
+          if (sim.hpAfter !== input.expectedHpAfter) return null;
+          if (sim.gemsAfter !== input.expectedGemsAfter) return null;
+          return mergeLogs(deriveEnemyFromRandom(random));
+        };
+
+        const cardIndexFromTx = await decodeChooseCardIndex(input.txHash);
+        if (cardIndexFromTx !== null) {
+          const preferred = tryIndex(cardIndexFromTx);
+          if (preferred) return preferred;
+        }
+
+        const matches: Array<ReturnType<typeof mergeLogs>> = [];
+        for (let idx = 0; idx < 4; idx += 1) {
+          if (cardIndexFromTx !== null && idx === cardIndexFromTx) continue;
+          const match = tryIndex(idx);
+          if (match) matches.push(match);
+        }
+
+        if (matches.length === 1) return matches[0];
+
+        return fromLogs;
+      } catch {
+        return fromLogs;
+      }
+    },
+    [extractEnemyStatsFromLogs, publicClient]
+  );
+
+  const getEnemyStatsFromReceipt = useCallback(
+    async (
+      txHash: `0x${string}`,
+      tokenIdForRun?: bigint,
+      resolved?: { player?: `0x${string}`; hpAfter?: number; gemsAfter?: number }
+    ) => {
+      if (!publicClient || tokenIdForRun === undefined) return null;
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+
+        const prevBlock = receipt.blockNumber > BigInt(0) ? receipt.blockNumber - BigInt(1) : BigInt(0);
+        const runBeforeRaw = (await publicClient.readContract({
+          address: CONTRACTS.DUNGEON_GAME,
+          abi: DungeonGameABI.abi,
+          functionName: 'tokenRuns',
+          args: [tokenIdForRun],
+          blockNumber: prevBlock,
+        })) as readonly unknown[];
+        const runBefore = parseRunTuple(runBeforeRaw);
+
+        let heroAttack = runBefore.atk;
+        let heroDefense = runBefore.def;
+        let heroMaxHP = runBefore.maxHP;
+
+        // Prefer same-block stats (important if the run started in this block).
+        try {
+          const runAfterRaw = (await publicClient.readContract({
+            address: CONTRACTS.DUNGEON_GAME,
+            abi: DungeonGameABI.abi,
+            functionName: 'tokenRuns',
+            args: [tokenIdForRun],
+            blockNumber: receipt.blockNumber,
+          })) as readonly unknown[];
+          const runAfter = parseRunTuple(runAfterRaw);
+          heroAttack = runAfter.atk;
+          heroDefense = runAfter.def;
+          heroMaxHP = runAfter.maxHP;
+        } catch {
+          // ignore
+        }
+
+        let heroHPBefore = runBefore.currentHP;
+        let gemsBefore = runBefore.gems;
+        let derivedBeforeFromSameBlock = false;
+
+        // If there was another CardResolved in the same block for this token, use it as the true "before" snapshot.
+        try {
+          const cardResolvedEvent = parseAbiItem(
+            'event CardResolved(address indexed player, uint256 indexed tokenId, uint8 cardType, uint8 room, uint8 hp, uint16 gems)'
+          );
+          const blockLogs = await publicClient.getLogs({
+            address: CONTRACTS.DUNGEON_GAME,
+            event: cardResolvedEvent,
+            args: { tokenId: tokenIdForRun },
+            fromBlock: receipt.blockNumber,
+            toBlock: receipt.blockNumber,
+          });
+          const ordered = [...(blockLogs as unknown as Array<{ transactionHash?: `0x${string}`; transactionIndex?: bigint | number; logIndex?: bigint | number; args?: { hp: bigint | number; gems: bigint | number } }>)].sort(
+            (a, b) => {
+              const aTx = typeof a.transactionIndex === 'bigint' ? Number(a.transactionIndex) : (a.transactionIndex ?? 0);
+              const bTx = typeof b.transactionIndex === 'bigint' ? Number(b.transactionIndex) : (b.transactionIndex ?? 0);
+              if (aTx !== bTx) return aTx - bTx;
+              const aLog = typeof a.logIndex === 'bigint' ? Number(a.logIndex) : (a.logIndex ?? 0);
+              const bLog = typeof b.logIndex === 'bigint' ? Number(b.logIndex) : (b.logIndex ?? 0);
+              return aLog - bLog;
+            }
+          );
+
+          const idx = ordered.findIndex((l) => (l.transactionHash ?? '').toLowerCase() === txHash.toLowerCase());
+          if (idx > 0) {
+            const prev = ordered[idx - 1];
+            if (prev.args) {
+              heroHPBefore = typeof prev.args.hp === 'bigint' ? Number(prev.args.hp) : prev.args.hp;
+              gemsBefore = typeof prev.args.gems === 'bigint' ? Number(prev.args.gems) : prev.args.gems;
+              derivedBeforeFromSameBlock = true;
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        // If this is the first action in the block and the run was started in this block, the prev-block snapshot
+        // may not represent the "before" values. In that case, use the RunStarted semantics.
+        if (!derivedBeforeFromSameBlock) {
+          try {
+            const runStartedEvent = parseAbiItem(
+              'event RunStarted(address indexed player, uint256 indexed tokenId, uint8 room, bool resumed)'
+            );
+            const startLogs = await publicClient.getLogs({
+              address: CONTRACTS.DUNGEON_GAME,
+              event: runStartedEvent,
+              args: { tokenId: tokenIdForRun },
+              fromBlock: receipt.blockNumber,
+              toBlock: receipt.blockNumber,
+            });
+
+            const txIndex =
+              typeof (receipt as unknown as { transactionIndex?: bigint | number }).transactionIndex === 'bigint'
+                ? Number((receipt as unknown as { transactionIndex: bigint }).transactionIndex)
+                : (receipt as unknown as { transactionIndex?: number }).transactionIndex ?? 0;
+
+            const startBefore = (startLogs as unknown as Array<{ transactionIndex?: bigint | number; args?: { resumed?: boolean } }>)
+              .map((l) => ({
+                txIndex: typeof l.transactionIndex === 'bigint' ? Number(l.transactionIndex) : (l.transactionIndex ?? 0),
+                resumed: Boolean(l.args?.resumed),
+              }))
+              .filter((l) => l.txIndex < txIndex)
+              .sort((a, b) => b.txIndex - a.txIndex)[0];
+
+            // Fresh run: HP is max and gems reset to 0.
+            if (startBefore && startBefore.resumed === false) {
+              heroHPBefore = heroMaxHP;
+              gemsBefore = 0;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        let player = resolved?.player;
+        let expectedHpAfter = resolved?.hpAfter;
+        let expectedGemsAfter = resolved?.gemsAfter;
+
+        if (!player || expectedHpAfter === undefined || expectedGemsAfter === undefined) {
+          for (const log of receipt.logs) {
+            try {
+              const decoded = decodeEventLog({
+                abi: DungeonGameABI.abi,
+                data: log.data,
+                topics: asDecodeTopics(log.topics),
+              });
+              if (decoded.eventName !== 'CardResolved') continue;
+              const args = decoded.args as Record<string, unknown> | undefined;
+              if (!args || Array.isArray(args)) continue;
+              const p = args.player;
+              const hp = args.hp;
+              const gems = args.gems;
+              if (typeof p === 'string') player = p as `0x${string}`;
+              if (typeof hp === 'bigint' || typeof hp === 'number') expectedHpAfter = Number(hp);
+              if (typeof gems === 'bigint' || typeof gems === 'number') expectedGemsAfter = Number(gems);
+              break;
+            } catch {
+              continue;
+            }
+          }
+        }
+
+        if (!player || expectedHpAfter === undefined || expectedGemsAfter === undefined) {
+          return {
+            heroHPBefore,
+            heroMaxHP,
+            heroAttack,
+            heroDefense,
+            gemsBefore,
+          };
+        }
+
+        const txIndex =
+          typeof (receipt as unknown as { transactionIndex?: bigint | number }).transactionIndex === 'bigint'
+            ? Number((receipt as unknown as { transactionIndex: bigint }).transactionIndex)
+            : (receipt as unknown as { transactionIndex?: number }).transactionIndex ?? 0;
+
+        const enemyStats = await computeEnemyStatsFromTxContext({
+          txHash,
+          blockNumber: receipt.blockNumber,
+          txIndex,
+          logs: receipt.logs,
+          tokenId: tokenIdForRun,
+          player,
+          heroHpBefore: heroHPBefore,
+          heroAtk: heroAttack,
+          heroDef: heroDefense,
+          gemsBefore,
+          expectedHpAfter,
+          expectedGemsAfter,
+        });
+
+        return {
+          ...(enemyStats ?? {}),
+          heroHPBefore,
+          heroMaxHP,
+          heroAttack,
+          heroDefense,
+          gemsBefore,
+        };
+      } catch {
+        return null;
+      }
+    },
+    [computeEnemyStatsFromTxContext, publicClient]
+  );
+
   // Function to reveal card from transaction receipt
   const revealCardFromTx = useCallback(async (txHash: `0x${string}`) => {
     if (!publicClient) return;
@@ -370,7 +1001,7 @@ export default function GamePage() {
           const decoded = decodeEventLog({
             abi: DungeonGameABI.abi,
             data: log.data,
-            topics: log.topics,
+            topics: asDecodeTopics(log.topics),
           });
           
           if (
@@ -386,9 +1017,27 @@ export default function GamePage() {
             }
 
             const cardType = Number(cardTypeValue);
+            const tokenIdValue = args.tokenId;
             const roomValue = args.room;
             const hpValue = args.hp;
             const gemsValue = args.gems;
+            const playerValue = args.player;
+
+            const tokenIdForEnemyStats =
+              typeof tokenIdValue === 'bigint'
+                ? tokenIdValue
+                : typeof tokenIdValue === 'number'
+                ? BigInt(tokenIdValue)
+                : tokenId;
+
+            const enemyStats =
+              cardType === 0 && tokenIdForEnemyStats !== undefined
+                ? await getEnemyStatsFromReceipt(txHash, tokenIdForEnemyStats, {
+                    player: typeof playerValue === 'string' ? (playerValue as `0x${string}`) : undefined,
+                    hpAfter: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : undefined,
+                    gemsAfter: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : undefined,
+                  })
+                : null;
 
             const newEntry: CardFeedItem = {
               txHash,
@@ -396,6 +1045,7 @@ export default function GamePage() {
               room: typeof roomValue === 'bigint' || typeof roomValue === 'number' ? Number(roomValue) : 0,
               hp: typeof hpValue === 'bigint' || typeof hpValue === 'number' ? Number(hpValue) : 0,
               gems: typeof gemsValue === 'bigint' || typeof gemsValue === 'number' ? Number(gemsValue) : 0,
+              ...(cardType === 0 && enemyStats ? enemyStats : {}),
             };
 
             processCardResolution(newEntry);
@@ -416,7 +1066,7 @@ export default function GamePage() {
       setIsChoosingCard(false);
       setPendingTxHash(null);
     }
-  }, [processCardResolution, publicClient, refetchRun]);
+  }, [getEnemyStatsFromReceipt, processCardResolution, publicClient, refetchRun, tokenId]);
 
   // Watch for pending tx to complete
   useEffect(() => {
@@ -431,28 +1081,41 @@ export default function GamePage() {
     eventName: 'CardResolved',
     args: tokenId ? { tokenId } : undefined,
     onLogs: (logs) => {
-      const entries = logs
-        .map((log) => {
-          const args = (log as unknown as {
-            args: {
-              cardType: bigint;
-              room: bigint;
-              hp: bigint;
-              gems: bigint;
-            };
-          }).args;
-          return {
-            txHash: log.transactionHash || Math.random().toString(36),
-            cardType: Number(args.cardType),
-            room: Number(args.room),
-            hp: Number(args.hp),
-            gems: Number(args.gems),
-          } satisfies CardFeedItem;
-        })
-        .reverse();
-      if (entries.length) {
-        entries.forEach((entry) => processCardResolution(entry));
-      }
+      const reversed = [...logs].reverse();
+      reversed.forEach((log) => {
+        const args = (log as unknown as {
+          args: {
+            player: `0x${string}`;
+            tokenId: bigint;
+            cardType: bigint;
+            room: bigint;
+            hp: bigint;
+            gems: bigint;
+          };
+        }).args;
+
+        const txHash = log.transactionHash;
+        const entryBase: CardFeedItem = {
+          txHash: txHash || Math.random().toString(36),
+          cardType: Number(args.cardType),
+          room: Number(args.room),
+          hp: Number(args.hp),
+          gems: Number(args.gems),
+        };
+
+        if (entryBase.cardType === 0 && txHash) {
+          getEnemyStatsFromReceipt(txHash, args.tokenId, {
+            player: args.player,
+            hpAfter: Number(args.hp),
+            gemsAfter: Number(args.gems),
+          }).then((enemyStats) => {
+            processCardResolution(enemyStats ? { ...entryBase, ...enemyStats } : entryBase);
+          });
+          return;
+        }
+
+        processCardResolution(entryBase);
+      });
     },
   });
 
@@ -871,8 +1534,12 @@ export default function GamePage() {
                         <p className="text-lg font-bold text-dungeon-accent-gold">#{tokenId.toString()}</p>
                       </div>
                       {heroProfile && (
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-black bg-gradient-to-r ${heroProfile.accent} w-fit`}>
-                          {heroProfile.name}
+                        <span className="df-name-shimmer inline-flex w-fit">
+                          <span
+                            className={`df-name-shimmer__clip inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-black bg-gradient-to-r ${heroProfile.accent}`}
+                          >
+                            {heroProfile.name}
+                          </span>
                         </span>
                       )}
                     </div>
