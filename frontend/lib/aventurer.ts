@@ -11,18 +11,80 @@ export type AventurerClassKey =
   | 'lancer'
   | 'colossus';
 
+export type AventurerCardVariant = 'card' | 'battle' | 'trap' | 'potion' | 'gem';
+
 const HERO_CARD_BASE_PATH = '/cards/Adventurers%20cards';
 
-export const AVENTURER_CARD_IMAGES: Record<AventurerClassKey, string> = {
-  warrior: `${HERO_CARD_BASE_PATH}/Warrior.png`,
-  knight: `${HERO_CARD_BASE_PATH}/Knight.png`,
-  juggernaut: `${HERO_CARD_BASE_PATH}/juggernaut.png`,
-  scrawny: `${HERO_CARD_BASE_PATH}/Scrawny.png`,
-  paladin: `${HERO_CARD_BASE_PATH}/Paladin%20card.png`,
-  adventurer: `${HERO_CARD_BASE_PATH}/Adventurer%20card.png`,
-  lancer: `${HERO_CARD_BASE_PATH}/Lancer%20card.png`,
-  colossus: `${HERO_CARD_BASE_PATH}/Colossus.png`,
+const AVENTURER_CARD_VARIANTS: Record<AventurerClassKey, Record<AventurerCardVariant, string>> = {
+  warrior: {
+    card: `${HERO_CARD_BASE_PATH}/Warrior/Warrior%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Warrior/Warrior%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Warrior/Warrior%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Warrior/Warrior%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Warrior/Warrior%20Gem.png`,
+  },
+  knight: {
+    card: `${HERO_CARD_BASE_PATH}/Knight/Knight%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Knight/Knight%20card.png`, // Battle art missing, use base card
+    trap: `${HERO_CARD_BASE_PATH}/Knight/Knight%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Knight/Knight%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Knight/Knight%20Gem.png`,
+  },
+  juggernaut: {
+    card: `${HERO_CARD_BASE_PATH}/Juggernaut/juggernaut%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Juggernaut/Juggernaut%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Juggernaut/juggernaut%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Juggernaut/Juggernaut%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Juggernaut/juggernaut%20gem.png`,
+  },
+  scrawny: {
+    card: `${HERO_CARD_BASE_PATH}/Scrawny/Scrawny%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Scrawny/Scrawny%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Scrawny/scrawny%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Scrawny/Scrawny%20Potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Scrawny/Scrawny%20Gem.png`,
+  },
+  paladin: {
+    card: `${HERO_CARD_BASE_PATH}/Paladin/Paladin%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Paladin/Paladin%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Paladin/paladin%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Paladin/Paladin%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Paladin/Paladin%20Gem.png`,
+  },
+  adventurer: {
+    card: `${HERO_CARD_BASE_PATH}/Adventurer/Adventurer%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Adventurer/Adventurer%20card.png`, // Battle art missing, use base card
+    trap: `${HERO_CARD_BASE_PATH}/Adventurer/Adventurer%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Adventurer/Adventurer%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Adventurer/Adventurer%20gem.png`,
+  },
+  lancer: {
+    card: `${HERO_CARD_BASE_PATH}/Lancer/Lancer%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Lancer/Lancer%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Lancer/Lancer%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Lancer/Lancer%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Lancer/Lancer%20Gem.png`,
+  },
+  colossus: {
+    card: `${HERO_CARD_BASE_PATH}/Colossus/Colossus%20card.png`,
+    battle: `${HERO_CARD_BASE_PATH}/Colossus/Colossus%20battle.png`,
+    trap: `${HERO_CARD_BASE_PATH}/Colossus/Colossus%20trap.png`,
+    potion: `${HERO_CARD_BASE_PATH}/Colossus/Colossus%20potion.png`,
+    gem: `${HERO_CARD_BASE_PATH}/Colossus/Colossus%20gem.png`,
+  },
 };
+
+export const AVENTURER_CARD_IMAGES: Record<AventurerClassKey, string> = Object.fromEntries(
+  Object.entries(AVENTURER_CARD_VARIANTS).map(([key, variants]) => [key, variants.card])
+) as Record<AventurerClassKey, string>;
+
+export function getAventurerCardVariant(
+  classKey: AventurerClassKey,
+  variant: AventurerCardVariant = 'card'
+) {
+  const variants = AVENTURER_CARD_VARIANTS[classKey];
+  return variants[variant] ?? variants.card;
+}
 
 export const AVENTURER_CLASSES: Record<
   AventurerClassKey,
@@ -93,11 +155,14 @@ export function getAventurerClass(stats?: Pick<AventurerStats, 'atk' | 'def' | '
   return null;
 }
 
-export function getAventurerClassWithCard(stats?: Pick<AventurerStats, 'atk' | 'def' | 'hp'>) {
+export function getAventurerClassWithCard(
+  stats?: Pick<AventurerStats, 'atk' | 'def' | 'hp'>,
+  variant: AventurerCardVariant = 'card'
+) {
   const baseClass = getAventurerClass(stats);
   if (!baseClass) return null;
 
-  const cardImage = AVENTURER_CARD_IMAGES[baseClass.key as AventurerClassKey];
+  const cardImage = getAventurerCardVariant(baseClass.key as AventurerClassKey, variant);
   return {
     ...baseClass,
     cardImage,

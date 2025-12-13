@@ -51,6 +51,7 @@ export default function NFTsPage() {
   const [burnToken, setBurnToken] = useState<bigint | null>(null);
   const [activeNFT, setActiveNFT] = useState<WalletNFT | null>(null);
   const [dungeonNFTs, setDungeonNFTs] = useState<WalletNFT[]>([]);
+  const [page, setPage] = useState(1);
   const [runStateByToken, setRunStateByToken] = useState<
     Record<
       string,
@@ -235,6 +236,15 @@ export default function NFTsPage() {
     [sorted, statusFilter, activeTokenId, dungeonNFTs, runStateByToken]
   );
 
+  const pageSize = 6;
+  const totalPages = Math.max(1, Math.ceil(displayList.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedList = displayList.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, sortKey, sortDir, displayList.length]);
+
   useEffect(() => {
     if (isSuccess) {
       setBurnToken(null);
@@ -278,11 +288,12 @@ export default function NFTsPage() {
                 <h2 className="text-3xl font-bold mb-2">Your Aventurers</h2>
                 <p className="text-white/70 text-sm">Select an adventurer for your next dungeon run, view stats, and manage your NFTs.</p>
               </div>
-              <div className="bg-dungeon-bg-darker border border-amber-600/60 rounded-lg p-4 text-center">
-                <p className="text-xs text-white/70 uppercase tracking-widest mb-1">Burn address</p>
-                <p className="font-mono text-sm text-white break-all">{burnAddress}</p>
-                <p className="text-[10px] text-white/50 mt-1">Transfers to burn are irreversible</p>
-              </div>
+                  <div className="bg-dungeon-bg-darker border border-amber-600/60 rounded-lg p-4 text-center">
+                    <p className="text-xs text-white/70 uppercase tracking-widest mb-1">Burn address</p>
+                    <p className="font-mono text-sm text-white break-all">{burnAddress}</p>
+                    <p className="text-[10px] text-white/50 mt-1">Transfers to burn are irreversible</p>
+                    <p className="text-[11px] text-white/60 mt-2">{displayList.length} Aventurer(s)</p>
+                  </div>
             </div>
 
             {!mounted ? (
@@ -363,12 +374,12 @@ export default function NFTsPage() {
                 )}
 
                 <div className="grid md:grid-cols-2 gap-6">
-                  {displayList.map((nft) => {
+                  {paginatedList.map((nft) => {
                     const nftClass = getAventurerClassWithCard(nft.stats);
                     const runInfo = runStateByToken[nft.tokenId.toString()];
                     const isActiveToken = activeTokenId !== BigInt(0) && nft.tokenId === activeTokenId;
                     const isPausedRun = runInfo?.status === RunStatus.Paused;
-        const isInDungeon =
+                    const isInDungeon =
                       isActiveToken ||
                       runInfo?.deposited ||
                       isPausedRun ||
@@ -487,6 +498,44 @@ export default function NFTsPage() {
                     );
                   })}
                 </div>
+
+                {displayList.length > pageSize && (
+                  <div className="flex items-center justify-center gap-3 pt-4">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-2 rounded-lg border border-amber-600/60 bg-dungeon-bg-darker disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← Prev
+                    </button>
+                    <div className="flex items-center gap-2 text-sm text-white/80">
+                      {Array.from({ length: totalPages }).map((_, idx) => {
+                        const pageNum = idx + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`w-8 h-8 rounded-lg border ${
+                              pageNum === currentPage
+                                ? 'border-dungeon-accent-gold bg-dungeon-accent-bronze text-black'
+                                : 'border-amber-600/60 bg-dungeon-bg-darker text-white/80'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-xs text-white/60">Page {currentPage} of {totalPages}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-2 rounded-lg border border-amber-600/60 bg-dungeon-bg-darker disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -13,7 +13,12 @@ import { AdventureLog } from '@/components/AdventureLog';
 import { GameCard } from '@/components/GameCard';
 import { CombatResultDialog, CombatSummary } from '@/components/CombatResultDialog';
 import { CURRENT_NETWORK, CONTRACTS, GAME_CONFIG } from '@/lib/constants';
-import { getAventurerClassWithCard } from '@/lib/aventurer';
+import {
+  getAventurerCardVariant,
+  getAventurerClassWithCard,
+  type AventurerCardVariant,
+  type AventurerClassKey,
+} from '@/lib/aventurer';
 import DungeonGameABI from '@/lib/contracts/DungeonGame.json';
 import { Header } from '@/components/Header';
 
@@ -44,6 +49,22 @@ type CombatSnapshot = {
   heroAttack: number;
   heroDefense: number;
   heroMaxHP: number;
+};
+
+const resolveCardVariant = (cardType?: number): AventurerCardVariant => {
+  switch (cardType) {
+    case 0:
+      return 'battle';
+    case 1:
+      return 'trap';
+    case 2:
+    case 3:
+      return 'potion';
+    case 4:
+      return 'gem';
+    default:
+      return 'card';
+  }
 };
 
 export default function GamePage() {
@@ -107,10 +128,23 @@ export default function GamePage() {
     ((isLoadingNfts && !hasLoadedNfts) ||
       (isLoadingTokenId && !hasLoadedToken) ||
       (isLoadingStats && !hasLoadedStats));
+  const [heroCardVariant, setHeroCardVariant] = useState<AventurerCardVariant>('card');
+  const [heroVariantUpdatedAt, setHeroVariantUpdatedAt] = useState<number | null>(null);
   const heroProfile = useMemo(
-    () => getAventurerClassWithCard(stats),
-    [stats?.atk, stats?.def, stats?.hp, stats?.mintedAt]
+    () => getAventurerClassWithCard(stats, heroCardVariant),
+    [heroCardVariant, stats?.atk, stats?.def, stats?.hp, stats?.mintedAt]
   );
+
+  useEffect(() => {
+    setHeroCardVariant('card');
+    setHeroVariantUpdatedAt(Date.now());
+  }, []);
+
+  useEffect(() => {
+    setHeroCardVariant('card');
+    setHeroVariantUpdatedAt(Date.now());
+  }, [tokenId]);
+
   const statsTiles = stats ? (
     <>
       <div className="bg-black/30 border border-purple-500/30 rounded-lg p-3">
@@ -268,6 +302,15 @@ export default function GamePage() {
         setTimeout(() => adventureLogRefetchRef.current?.(), 2500);
       }
 
+      const resolvedVariant = resolveCardVariant(entry.cardType);
+      const heroClassKey = heroProfile?.key as AventurerClassKey | undefined;
+      const heroCardForEvent = heroClassKey
+        ? getAventurerCardVariant(heroClassKey, resolvedVariant)
+        : heroProfile?.cardImage;
+
+      setHeroCardVariant(resolvedVariant);
+      setHeroVariantUpdatedAt(Date.now());
+
       if (entry.cardType === 0) {
         const snapshot = combatSnapshotRef.current;
         const hpBefore = snapshot?.hpBefore ?? toNumber(runState?.currentHP ?? stats?.hp);
@@ -291,7 +334,7 @@ export default function GamePage() {
           gemsAfter: entry.gems,
           gemsDelta,
           heroName: heroProfile?.name ?? 'Adventurer',
-          heroCardImage: heroProfile?.cardImage,
+          heroCardImage: heroCardForEvent,
           cardLabel: CARD_LABELS[entry.cardType] ?? 'Monster',
           cardEmoji: CARD_EMOJIS[entry.cardType] ?? '👹',
         });
@@ -306,7 +349,7 @@ export default function GamePage() {
         refetchRun();
       }, 3000);
     },
-    [heroProfile, refetchRun, runState, stats]
+    [heroProfile, refetchRun, runState, setHeroCardVariant, setHeroVariantUpdatedAt, stats]
   );
 
   const handleCloseCombatSummary = useCallback(() => {
@@ -429,6 +472,28 @@ export default function GamePage() {
   const needsApproval = Boolean(address && tokenId && !isApproved);
   const actionDisabled = !tokenId || isPending || isConfirming || isApprovingApproval || needsApproval;
   const cardDisabled = actionDisabled || !isActive || !isDeposited;
+
+  useEffect(() => {
+    if (!isActive || !isDeposited) {
+      setHeroCardVariant('card');
+      setHeroVariantUpdatedAt(Date.now());
+    }
+  }, [isActive, isDeposited]);
+
+  useEffect(() => {
+    if (heroCardVariant === 'card') return;
+
+    const timeoutId = setTimeout(() => {
+      const isIdle =
+        !isChoosingCard && pendingTxHash === null && selectedCardIndex === null;
+      if (isIdle) {
+        setHeroCardVariant('card');
+        setHeroVariantUpdatedAt(Date.now());
+      }
+    }, 60000);
+
+    return () => clearTimeout(timeoutId);
+  }, [heroCardVariant, heroVariantUpdatedAt, isChoosingCard, pendingTxHash, selectedCardIndex]);
 
   const showAdventurerSkeleton =
     isInitialDataLoading &&
