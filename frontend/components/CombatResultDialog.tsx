@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
 export type CombatSummary = {
@@ -11,7 +11,8 @@ export type CombatSummary = {
   heroMaxHP: number;
   heroDied: boolean;
   enemyHP?: number;
-  enemyAttack?: number;
+  enemyAttackMin?: number;
+  enemyAttackMax?: number;
   enemyDefense?: number;
   battleTurns?: string[];
   gemsBefore: number;
@@ -30,8 +31,8 @@ interface CombatResultDialogProps {
 
 const ENEMY_IMAGE = '/cards/Enemy card.png';
 const ENEMY_STAT_FALLBACK = {
-  attack: '1–4',
-  defense: '0–1',
+  attack: '1–3',
+  defense: '0',
   hp: '3–6',
 } as const;
 
@@ -46,7 +47,8 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
     heroMaxHP,
     heroDied,
     enemyHP,
-    enemyAttack,
+    enemyAttackMin,
+    enemyAttackMax,
     enemyDefense,
     battleTurns,
     gemsBefore,
@@ -66,6 +68,8 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
 
   const [visibleTurnCount, setVisibleTurnCount] = useState(0);
   const hasTurns = Array.isArray(battleTurns) && battleTurns.length > 0;
+  const logScrollRef = useRef<HTMLDivElement | null>(null);
+  const isReplayComplete = !hasTurns || visibleTurnCount >= (battleTurns?.length ?? 0);
 
   useEffect(() => {
     if (!hasTurns) {
@@ -97,6 +101,17 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
 
     return () => window.clearInterval(id);
   }, [battleTurns, hasTurns]);
+
+  useEffect(() => {
+    if (!hasTurns) return;
+    // We render newest-first; keep the newest line visible at the top.
+    const el = logScrollRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+  }, [hasTurns, visibleTurnCount]);
+
+  const visibleTurns = hasTurns ? battleTurns!.slice(0, visibleTurnCount) : [];
+  const newestFirstTurns = hasTurns ? [...visibleTurns].reverse() : [];
 
   return (
     <div
@@ -163,7 +178,11 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
             <dl className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/90">
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">ATK</dt>
-                <dd className="font-semibold text-white">{typeof enemyAttack === 'number' ? enemyAttack : ENEMY_STAT_FALLBACK.attack}</dd>
+                <dd className="font-semibold text-white">
+                  {typeof enemyAttackMin === 'number' && typeof enemyAttackMax === 'number'
+                    ? `${enemyAttackMin}–${enemyAttackMax}`
+                    : ENEMY_STAT_FALLBACK.attack}
+                </dd>
               </div>
               <div className="rounded-lg bg-dungeon-bg-darker border border-amber-600/40 px-2 py-1">
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-white/60">DEF</dt>
@@ -177,53 +196,62 @@ export function CombatResultDialog({ summary, onClose }: CombatResultDialogProps
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP change</p>
-            <p className="text-lg font-semibold text-white">
-              {heroHPBefore} → {heroHPAfter}
-            </p>
-            <p className="text-xs text-white/70">{damageLine}</p>
+        {isReplayComplete && (
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">HP change</p>
+              <p className="text-lg font-semibold text-white">
+                {heroHPBefore} → {heroHPAfter}
+              </p>
+              <p className="text-xs text-white/70">{damageLine}</p>
+            </div>
+            <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Gems</p>
+              <p className="text-lg font-semibold text-white">
+                {gemsBefore} → {gemsAfter}
+              </p>
+              <p className="text-xs text-white/70">{lootLine}</p>
+            </div>
+            <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Outcome</p>
+              <p className={`text-lg font-semibold ${heroDied ? 'text-red-300' : 'text-green-300'}`}>{heroDied ? 'Defeat' : 'Victory'}</p>
+              <p className="text-xs text-white/70">{survivalLine}</p>
+            </div>
           </div>
-          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Gems</p>
-            <p className="text-lg font-semibold text-white">
-              {gemsBefore} → {gemsAfter}
-            </p>
-            <p className="text-xs text-white/70">{lootLine}</p>
-          </div>
-          <div className="rounded-lg border border-amber-600/60 bg-dungeon-bg-darker/60 p-3">
-            <p className="text-[10px] uppercase tracking-[0.25em] text-white/60">Outcome</p>
-            <p className={`text-lg font-semibold ${heroDied ? 'text-red-300' : 'text-green-300'}`}>{heroDied ? 'Defeat' : 'Victory'}</p>
-            <p className="text-xs text-white/70">{survivalLine}</p>
-          </div>
-        </div>
+        )}
 
         <div className="mt-6 rounded-xl border border-amber-600/60 bg-dungeon-bg-darker/60 p-4 text-sm text-white/90">
-          <p className="font-semibold uppercase tracking-[0.25em] text-white/70">Battle breakdown</p>
+          <p className="font-semibold uppercase tracking-[0.25em] text-white/70">Battle log</p>
           {hasTurns ? (
             <div className="mt-3 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-white/70">Replaying combat...</p>
-                <button
-                  type="button"
-                  className="text-xs font-semibold uppercase tracking-[0.25em] text-dungeon-accent-gold hover:text-white transition"
-                  onClick={() => setVisibleTurnCount(battleTurns!.length)}
-                >
-                  Skip
-                </button>
+                {!isReplayComplete && (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold uppercase tracking-[0.25em] text-dungeon-accent-gold hover:text-white transition"
+                    onClick={() => setVisibleTurnCount(battleTurns!.length)}
+                  >
+                    Skip
+                  </button>
+                )}
               </div>
-              <ul className="space-y-2 text-xs text-white/80">
-                {battleTurns!.slice(0, visibleTurnCount).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
+              <div ref={logScrollRef} className="h-56 overflow-y-auto rounded-lg border border-amber-600/30 bg-black/20 p-3">
+                <ul className="space-y-2 text-xs text-white/80">
+                  {newestFirstTurns.map((line, idx) => (
+                    <li key={`${visibleTurnCount - 1 - idx}-${line}`}>{line}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
           ) : (
             <ul className="mt-3 space-y-2 text-xs text-white/80">
               <li>Hero attack stat: {heroAttack}</li>
               <li>
-                Enemy attack {typeof enemyAttack === 'number' ? enemyAttack : ENEMY_STAT_FALLBACK.attack} vs hero defense {heroDefense}
+                Enemy attack {typeof enemyAttackMin === 'number' && typeof enemyAttackMax === 'number'
+                  ? `${enemyAttackMin}–${enemyAttackMax}`
+                  : ENEMY_STAT_FALLBACK.attack}{' '}
+                vs hero defense {heroDefense}
               </li>
               <li>Total damage taken: {damageTaken}</li>
               <li>Remaining vitality: {heroHPAfter}/{heroMaxHP}</li>

@@ -16,11 +16,6 @@
           "internalType": "address",
           "name": "_progressTracker",
           "type": "address"
-        },
-        {
-          "internalType": "address payable",
-          "name": "_rewardsPool",
-          "type": "address"
         }
       ],
       "stateMutability": "nonpayable",
@@ -130,13 +125,31 @@
         {
           "indexed": false,
           "internalType": "uint8",
+          "name": "heroHPBefore",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "heroHPAfter",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
           "name": "monsterHP",
           "type": "uint8"
         },
         {
           "indexed": false,
           "internalType": "uint8",
-          "name": "monsterATK",
+          "name": "monsterATKMin",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "monsterATKMax",
           "type": "uint8"
         },
         {
@@ -144,6 +157,18 @@
           "internalType": "uint8",
           "name": "monsterDEF",
           "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "rounds",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "battleLog",
+          "type": "uint256"
         }
       ],
       "name": "MonsterEncountered",
@@ -567,19 +592,6 @@
       "name": "renounceOwnership",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "rewardsPool",
-      "outputs": [
-        {
-          "internalType": "contract RewardsPool",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {

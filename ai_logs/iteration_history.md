@@ -1494,3 +1494,61 @@ Simplified `.run-counter` class in `frontend/app/globals.css`:
 
 **Last Updated:** December 13, 2025
 **Next Update:** After Vercel deployment and hackathon submission
+
+---
+
+### Iteration 3.5: Authoritative On-Chain Battle Log + Combat Update
+**Date:** 2025-12-14
+**Duration:** ~3 hours
+**Phase:** Smart Contracts + Frontend Integration
+
+**Goal:**
+Make monster combat logs 100% faithful to on-chain execution (no client-side reconstruction), add enemy ATK range (1–3) with per-turn rolls, and update UI wording/order.
+
+**AI Assistance:**
+- Tool: GitHub Copilot (VS Code)
+- Tasks: Solidity refactor, event design, ABI regeneration, frontend decoding, redeploy scripting
+
+**Changes Made:**
+1. **Combat rules update (on-chain):**
+   - Monster ATK is now a range with a per-turn roll
+   - Enemy damage uses `max(rolledATK - heroDEF, 0)` (only subtract HP if > 0)
+2. **Authoritative transcript (on-chain event):**
+   - Expanded `MonsterEncountered` event to include ATK min/max, hero HP before/after, round count, and packed `battleLog`
+   - Frontend derives battle log strictly from event decoding
+3. **Frontend UX update:**
+   - Renamed “Battle breakdown” → “Battle log”
+   - Displays newest log lines first (newest-at-top)
+4. **Tooling + deployment:**
+   - Regenerated ABI JSON used by `frontend/`
+   - Redeployed only `DungeonGame` on Base Sepolia and updated references while reusing existing supporting contracts
+   - Added `frontend/.env.local` for local UI wiring
+
+**Issues Encountered:**
+- ABI mismatch caused event decoding to fail until ABI JSON was regenerated
+- Legacy client-side RNG reconstruction left stale code paths that had to be removed to guarantee fidelity
+
+**Solutions Applied:**
+- Emit a packed on-chain transcript (`battleLog`) and decode it in the UI
+- Remove legacy reconstruction and treat events as the sole source of truth
+- Normalize env var handling for redeploy scripts and Hardhat network config
+
+**Testing:**
+- Frontend production build succeeded
+- Manual smoke test pending: run a monster combat and verify log vs BaseScan event data
+
+**Outcome:** ✅ Combat log is on-chain authoritative; UI matches spec
+
+**Files Modified:**
+- contracts/DungeonGame.sol
+- frontend/app/game/page.tsx
+- frontend/components/CombatResultDialog.tsx
+- frontend/lib/contracts/DungeonGame.json
+- scripts/redeploy-dungeon-game.ts
+- hardhat.config.ts
+- PROJECT_STATUS.md
+
+**Next Steps:**
+1. Smoke test a Monster fight in UI and compare with BaseScan event
+2. Rotate deployer key if it was ever exposed during development
+3. (Optional) Verify the redeployed `DungeonGame` on BaseScan

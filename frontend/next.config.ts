@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: configDir,
   webpack: (config, { isServer }) => {
     // Ignore optional modules that are not installed
     config.externals.push(

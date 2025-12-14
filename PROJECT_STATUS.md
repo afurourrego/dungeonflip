@@ -1,28 +1,29 @@
 ## 📊 DungeonFlip – Project Status Report
 
-**Date:** December 13, 2025
+**Date:** December 14, 2025
 **Scope:** Custodial DungeonGame build (Base Sepolia)
-**Latest Update:** Contract cleanup, re-deployment, combat UI polish, and comprehensive documentation
+**Latest Update:** On-chain combat transcript (authoritative battle log), enemy ATK range/rolls, ABI refresh, and DungeonGame redeploy
 
 ---
 
 ## ✅ Smart-Contract Status
 
-### Base Sepolia Deployments (Latest - Dec 13, 2025)
+### Base Sepolia Deployments (Latest - Dec 14, 2025)
 
 | Contract | Address | Status |
 | --- | --- | --- |
-| AventurerNFT | `0x07753598E13Bce7388bD66F1016155684cc3293B` | ✅ Deployed & verified |
-| FeeDistributor | `0xD00c128486dE1C13074769922BEBe735F378A290` | ✅ Deployed & verified |
-| ProgressTracker | `0x623435ECC6b3B418d79EE396298aF59710632595` | ✅ Deployed & verified |
-| RewardsPool | `0x9A19912DDb7e71b4dccC9036f9395D88979A4F17` | ✅ Deployed & verified |
-| DungeonGame | `0x066d926eA2b3Fd48BC44e0eE8b5EA14474c40746` | ✅ Deployed & verified |
+| AventurerNFT | `0x20b0BD45Ee15Ad3512749767859E1a2e94d21EB9` | ✅ Deployed (reused) |
+| FeeDistributor | `0x0FeCBEf041A38948b2353d12380dB60F818D2C1b` | ✅ Deployed (reused) |
+| ProgressTracker | `0xE77F7e804934d01BF1613eE74Fd6BB976042a2a2` | ✅ Deployed (reused) |
+| RewardsPool | `0x4a3992BD999565c99DfD3479Ae3Df33F705515F3` | ✅ Deployed (reused) |
+| DungeonGame | `0x1f0F86F2607A087062A85C206b2E6840f318C73B` | ✅ Deployed (updated combat) |
 
-**Recent Changes (Dec 13):**
-- Cleaned obsolete code from DungeonGame (Math library, unused RewardsPool reference)
-- Updated deploy script to match new constructor (3 params instead of 4)
-- Recompiled and redeployed all contracts
-- Updated frontend constants with new addresses
+**Recent Changes (Dec 14):**
+- Combat update: monster ATK is a range with per-turn rolls; enemy damage is `max(rolledATK - heroDEF, 0)`
+- Combat UX update: renamed “Battle breakdown” → “Battle log”, newest-first, and 100% event-derived (no client simulation)
+- Contract update: `MonsterEncountered` emits an authoritative packed `battleLog` transcript for the UI to decode
+- Tooling update: regenerated ABI JSON used by the frontend
+- Deployment update: redeployed only `DungeonGame`, reusing other contracts and updating references
 
 **Config snapshot:**
 - `ENTRY_FEE`: 0.00001 ETH
@@ -202,12 +203,12 @@ npx hardhat run scripts/distribute-rewards.ts --network baseSepolia
 - **Bridge to Base Sepolia:** https://bridge.base.org/
 - **Base Sepolia Faucet:** https://www.coinbase.com/faucets/base-sepolia-faucet
 
-**Verified contracts:**
-- AventurerNFT – https://sepolia.basescan.org/address/0x07753598E13Bce7388bD66F1016155684cc3293B
-- FeeDistributor – https://sepolia.basescan.org/address/0xD00c128486dE1C13074769922BEBe735F378A290
-- ProgressTracker – https://sepolia.basescan.org/address/0x623435ECC6b3B418d79EE396298aF59710632595
-- RewardsPool – https://sepolia.basescan.org/address/0x9A19912DDb7e71b4dccC9036f9395D88979A4F17
-- DungeonGame – https://sepolia.basescan.org/address/0x066d926eA2b3Fd48BC44e0eE8b5EA14474c40746
+**Contract links (Base Sepolia):**
+- AventurerNFT – https://sepolia.basescan.org/address/0x20b0BD45Ee15Ad3512749767859E1a2e94d21EB9
+- FeeDistributor – https://sepolia.basescan.org/address/0x0FeCBEf041A38948b2353d12380dB60F818D2C1b
+- ProgressTracker – https://sepolia.basescan.org/address/0xE77F7e804934d01BF1613eE74Fd6BB976042a2a2
+- RewardsPool – https://sepolia.basescan.org/address/0x4a3992BD999565c99DfD3479Ae3Df33F705515F3
+- DungeonGame – https://sepolia.basescan.org/address/0x1f0F86F2607A087062A85C206b2E6840f318C73B
 
 ---
 
