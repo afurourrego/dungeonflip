@@ -23,8 +23,8 @@ Create `.env` in the repository root (copy from `.env.example`) and populate:
 ```bash
 PRIVATE_KEY=your_private_key_without_0x
 BASESCAN_API_KEY=your_basescan_api_key
-BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-BASE_MAINNET_RPC_URL=https://mainnet.base.org
+BASE_SEPOLIA_RPC=https://sepolia.base.org
+BASE_MAINNET_RPC=https://mainnet.base.org
 ```
 
 ### Testnet ETH

@@ -186,3 +186,17 @@ export function useEntryFee() {
     },
   });
 }
+
+export function useLastEntryTime(address?: `0x${string}`) {
+  return useReadContract({
+    address: CONTRACTS.DUNGEON_GAME,
+    abi: ABI,
+    functionName: 'lastEntryTime',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: Boolean(address),
+      refetchInterval: 10_000,
+      staleTime: 5_000,
+    },
+  });
+}

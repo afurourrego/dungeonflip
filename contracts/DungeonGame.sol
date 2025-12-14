@@ -82,14 +82,20 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
     event RunPaused(address indexed player, uint256 indexed tokenId, uint8 room, uint8 hp, uint16 gems);
     event RunExited(address indexed player, uint256 indexed tokenId, uint8 roomsCleared, uint16 gems, uint256 score);
     event RunDied(address indexed player, uint256 indexed tokenId, uint8 room, uint16 gems);
-    /// @notice Emitted when a Monster card is drawn, includes the exact monster stats used for the encounter.
+    /// @notice Emitted when a Monster card is drawn/resolved.
+    /// @dev Includes the exact monster stats used, plus a packed per-round battle log so the UI can render a 100% faithful transcript.
     event MonsterEncountered(
         address indexed player,
         uint256 indexed tokenId,
         uint8 room,
+        uint8 heroHPBefore,
+        uint8 heroHPAfter,
         uint8 monsterHP,
-        uint8 monsterATK,
-        uint8 monsterDEF
+        uint8 monsterATKMin,
+        uint8 monsterATKMax,
+        uint8 monsterDEF,
+        uint8 rounds,
+        uint256 battleLog
     );
     event CardResolved(
         address indexed player,
@@ -191,11 +197,34 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         CardType card = _drawCard(random % 100);
 
         if (card == CardType.Monster) {
+            uint8 heroHPBefore = run.currentHP;
             uint8 monsterHP = uint8(3 + (random % 4)); // 3-6 HP
-            uint8 monsterATK = uint8(1 + ((random >> 8) % 4)); // 1-4 ATK
-            uint8 monsterDEF = uint8((random >> 12) % 2); // 0-1 DEF
-            _resolveMonster(run, random, monsterHP, monsterATK, monsterDEF);
-            emit MonsterEncountered(msg.sender, tokenId, run.currentRoom, monsterHP, monsterATK, monsterDEF);
+            uint8 monsterATKMin = 1;
+            uint8 monsterATKMax = 3;
+            uint8 monsterDEF = 0;
+
+            (uint8 rounds, uint256 battleLog) = _resolveMonster(
+                run,
+                random,
+                monsterHP,
+                monsterATKMin,
+                monsterATKMax,
+                monsterDEF
+            );
+
+            emit MonsterEncountered(
+                msg.sender,
+                tokenId,
+                run.currentRoom,
+                heroHPBefore,
+                run.currentHP,
+                monsterHP,
+                monsterATKMin,
+                monsterATKMax,
+                monsterDEF,
+                rounds,
+                battleLog
+            );
         } else if (card == CardType.Trap) {
             _resolveTrap(run);
         } else if (card == CardType.PotionSmall) {
@@ -348,33 +377,73 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
         RunState storage run,
         uint256 random,
         uint8 monsterHP,
-        uint8 monsterATK,
+        uint8 monsterATKMin,
+        uint8 monsterATKMax,
         uint8 monsterDEF
-    ) internal {
+    ) internal returns (uint8 roundsUsed, uint256 battleLog) {
+        // The combat log packs up to 6 rounds, 32 bits per round:
+        // [0..7]   playerDamage
+        // [8..15]  monsterDamage
+        // [16..23] monsterRolledATK
+        // [24]     playerHit (0/1)
+        // [25]     monsterHit (0/1)
+        // remaining bits unused
         uint256 rolls = random >> 16;
 
+        uint8 atkRange = monsterATKMax - monsterATKMin + 1;
+
         for (uint8 round = 0; round < 6; round++) {
-            // Player attacks
+            uint8 playerDamage = 0;
             bool playerHits = (rolls & 0xFF) % 100 < 80; // 80% chance
             rolls >>= 8;
             if (playerHits) {
-                uint8 dmg = run.atk > monsterDEF ? run.atk - monsterDEF : 1;
-                monsterHP = dmg >= monsterHP ? 0 : monsterHP - dmg;
-            }
-            if (monsterHP == 0) {
-                break;
+                playerDamage = run.atk > monsterDEF ? run.atk - monsterDEF : 1;
+                monsterHP = playerDamage >= monsterHP ? 0 : monsterHP - playerDamage;
             }
 
-            // Monster attacks
-            bool monsterHits = (rolls & 0xFF) % 100 < 70; // 70% chance
-            rolls >>= 8;
-            if (monsterHits) {
-                uint8 dmg = monsterATK > run.def ? monsterATK - run.def : 1;
-                run.currentHP = dmg >= run.currentHP ? 0 : run.currentHP - dmg;
-                if (run.currentHP == 0) {
-                    return;
+            uint8 monsterRolledATK = 0;
+            uint8 monsterDamage = 0;
+            bool monsterHits = false;
+
+            // If the monster is dead, it does not take a turn.
+            if (monsterHP != 0) {
+                monsterHits = (rolls & 0xFF) % 100 < 70; // 70% chance
+                rolls >>= 8;
+
+                // Roll an attack value each monster turn (1..3). This is used to compute damage if the monster hits.
+                monsterRolledATK = monsterATKMin + uint8((rolls & 0xFF) % atkRange);
+                rolls >>= 8;
+
+                if (monsterHits) {
+                    // New rule: damage is (ATK - DEF) but never below 0.
+                    if (monsterRolledATK > run.def) {
+                        monsterDamage = monsterRolledATK - run.def;
+                    }
+
+                    if (monsterDamage > 0) {
+                        run.currentHP = monsterDamage >= run.currentHP ? 0 : run.currentHP - monsterDamage;
+                    }
                 }
             }
+
+            battleLog |= (
+                uint256(playerDamage)
+                    | (uint256(monsterDamage) << 8)
+                    | (uint256(monsterRolledATK) << 16)
+                    | (uint256(playerHits ? 1 : 0) << 24)
+                    | (uint256(monsterHits ? 1 : 0) << 25)
+            ) << (uint256(round) * 32);
+
+            roundsUsed = round + 1;
+
+            if (monsterHP == 0 || run.currentHP == 0) {
+                break;
+            }
+        }
+
+        // If the hero died, the contract returns immediately (no reward, no stalemate chip damage).
+        if (run.currentHP == 0) {
+            return (roundsUsed, battleLog);
         }
 
         if (monsterHP == 0) {
@@ -396,6 +465,8 @@ contract DungeonGame is Ownable, Pausable, ReentrancyGuard {
                 run.currentHP = run.currentHP > 1 ? run.currentHP - 1 : 0;
             }
         }
+
+        return (roundsUsed, battleLog);
     }
 
     function _drawCard(uint256 roll) internal pure returns (CardType) {

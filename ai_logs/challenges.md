@@ -339,6 +339,53 @@ await expect(
 
 ---
 
+## Challenge 6: Battle Log Fidelity (Avoid Client-Side Combat Reconstruction)
+**Date:** 2025-12-14
+**Phase:** Smart Contracts + Frontend
+**Severity:** 🔴 Critical
+
+**Context:**
+Combat UX required a “Battle log” that is 100% faithful to on-chain combat. Any client-side “replay” (reconstructing RNG/hit rolls) risked divergence whenever contract logic changed.
+
+**Problem:**
+- Monster ATK must be a range (1–3) with per-turn rolls
+- Enemy damage rule must be `max(rolledATK - heroDEF, 0)`
+- UI must render newest-first battle lines
+- UI must not simulate/approximate combat; it must display what happened on-chain
+- After contract changes, ABI mismatches can break event decoding
+
+**AI Tool Used:** GitHub Copilot (VS Code)
+
+**Prompt:**
+```
+Make combat logs 100% real and faithful to on-chain combat.
+Add enemy ATK range (1–3) with per-turn roll.
+Damage = atkRoll - heroDef, only subtract HP if > 0.
+Rename battle breakdown -> battle log.
+Newest-first.
+```
+
+**Solution Provided:**
+- Emit an authoritative combat transcript from the contract via `MonsterEncountered`:
+  - Include monster ATK min/max, hero HP before/after, round count
+  - Pack each round into a compact `battleLog` payload emitted in the event
+- Remove client-side reconstruction logic entirely; decode the transcript from the receipt logs
+- Regenerate the frontend ABI JSON after changing event signatures
+
+**Testing:**
+- Frontend build succeeded after ABI refresh
+- Manual smoke test pending: compare UI log lines with BaseScan event data for a Monster fight
+
+**Outcome:** ✅ Solved - battle log is event-authoritative
+
+**Time Saved:** ~2-3 hours (avoided repeated UI/contract divergence debugging)
+
+**Learning:**
+- When UX requires perfect fidelity, emit protocol-grade data in events and decode it
+- ABI drift is a predictable integration failure mode; bake ABI refresh into the workflow
+
+---
+
 ## Challenge Categories
 
 ### Smart Contract Challenges
@@ -424,12 +471,12 @@ When encountering a new challenge, use this template:
 
 ## Statistics
 
-**Total Challenges:** 5  
-**Challenges Solved:** 5  
+**Total Challenges:** 6  
+**Challenges Solved:** 6  
 **Success Rate:** 100%
 
 **By Severity:**
-- 🔴 Critical: 1 (solved)
+- 🔴 Critical: 2 (solved)
 - 🟠 High: 1 (solved)
 - 🟡 Medium: 2 (solved)
 - 🟢 Low: 1 (solved)
@@ -438,13 +485,13 @@ When encountering a new challenge, use this template:
 - Planning: 2
 - Setup: 0
 - Smart Contracts: 3
-- Frontend: 0
+- Frontend: 1
 - Testing: 0
 - Deployment: 0
 
 **By AI Tool:**
 - Claude: 2
-- GitHub Copilot: 4 (some challenges used multiple iterations)
+- GitHub Copilot: 5 (some challenges used multiple iterations)
 - ChatGPT: 0
 
 **Total Time Saved:** ~14-17 hours
@@ -475,6 +522,6 @@ When encountering a new challenge, use this template:
 
 ---
 
-**Last Updated:** December 4, 2025  
+**Last Updated:** December 14, 2025  
 **Status:** 🚧 In Progress  
-**Next Challenge:** Smart contract development phase
+**Next Challenge:** End-to-end UI smoke test + contract verification

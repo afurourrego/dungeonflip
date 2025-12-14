@@ -679,6 +679,46 @@ User: "pero sigues mostrando logs de run anteriores" (but you're still showing l
 
 ---
 
-**Total Prompts Documented:** 11 (10 detailed + 1 template + 1 onboarding)
-**Last Updated:** December 13, 2025
-**Status:** ✅ UI Polished with Color-Coded Logs - Ready for Contract Review & Deployment
+### Prompt 12: Authoritative On-Chain Battle Log (Combat Improvements)
+**Date:** 2025-12-14
+**Tool:** GitHub Copilot (VS Code)
+**Context:** Implement enemy ATK range/rolls and ensure the UI battle log is 100% faithful to on-chain combat.
+
+**Prompt:**
+```
+Enemy ATK must be a range (1–3) with a per-turn roll.
+Rename “Battle breakdown” → “Battle log”.
+Log must show newest-first.
+Logs must be 100% faithful to on-chain combat (no client reconstruction).
+Damage rule: enemyDamage = atkRoll − heroDef, and only subtract HP if result > 0.
+
+Also: regenerate ABI, redeploy only DungeonGame on Base Sepolia, and point the frontend to the new address.
+```
+
+**Response Summary:**
+- Updated `DungeonGame` combat to use per-round monster ATK rolls and 0-damage rule
+- Expanded `MonsterEncountered` event to include ATK range, hero HP before/after, round count, and packed `battleLog`
+- Removed client-side RNG reconstruction; frontend decodes the on-chain transcript only
+- Regenerated ABI JSON for the frontend and redeployed only `DungeonGame` on Base Sepolia
+- Wired `frontend/.env.local` to the new contract address
+
+**Iteration:** Multiple
+**Outcome:** ✅ Success - battle log is event-authoritative and UX matches spec
+**Files Modified:**
+- contracts/DungeonGame.sol
+- frontend/app/game/page.tsx
+- frontend/components/CombatResultDialog.tsx
+- frontend/lib/contracts/DungeonGame.json (ABI refresh)
+- scripts/redeploy-dungeon-game.ts
+- hardhat.config.ts
+
+**Learning:**
+- Event-emitted transcripts avoid UI/chain divergence and simplify debugging
+- ABI mismatches are the #1 cause of decoding failures after contract refactors
+- Treat combat logs as protocol data: decode, don’t “replay”
+
+---
+
+**Total Prompts Documented:** 12 (11 detailed + 1 template + 1 onboarding)
+**Last Updated:** December 14, 2025
+**Status:** ✅ Combat Log is On-Chain Authoritative - Ready for E2E Smoke Test

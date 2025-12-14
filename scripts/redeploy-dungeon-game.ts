@@ -6,6 +6,19 @@ function requiredAddress(value: string | undefined, name: string): string {
   return value;
 }
 
+function firstDefined(keys: string[]): { key: string; value: string } {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value) return { key, value };
+  }
+  throw new Error(`Missing env var: one of [${keys.join(", ")}]`);
+}
+
+function requiredAddressFrom(keys: string[]): string {
+  const { key, value } = firstDefined(keys);
+  return requiredAddress(value, key);
+}
+
 async function main() {
   const signers = await ethers.getSigners();
   if (!signers.length) {
@@ -18,22 +31,24 @@ async function main() {
   const isSepolia = network.name === "baseSepolia";
   const suffix = isSepolia ? "_SEPOLIA" : "";
 
-  const aventurerNFTAddress = requiredAddress(
-    process.env[`NEXT_PUBLIC_AVENTURER_NFT_ADDRESS${suffix}`],
-    `NEXT_PUBLIC_AVENTURER_NFT_ADDRESS${suffix}`
-  );
-  const feeDistributorAddress = requiredAddress(
-    process.env[`NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS${suffix}`],
-    `NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS${suffix}`
-  );
-  const progressTrackerAddress = requiredAddress(
-    process.env[`NEXT_PUBLIC_PROGRESS_TRACKER_ADDRESS${suffix}`],
-    `NEXT_PUBLIC_PROGRESS_TRACKER_ADDRESS${suffix}`
-  );
-  const rewardsPoolAddress = requiredAddress(
-    process.env[`NEXT_PUBLIC_REWARDS_POOL_ADDRESS${suffix}`],
-    `NEXT_PUBLIC_REWARDS_POOL_ADDRESS${suffix}`
-  );
+  // Support both frontend-style NEXT_PUBLIC_* vars and backend-style *_ADDRESS vars.
+  // This lets us keep already-deployed supporting contracts and redeploy only DungeonGame.
+  const aventurerNFTAddress = requiredAddressFrom([
+    `NEXT_PUBLIC_AVENTURER_NFT_ADDRESS${suffix}`,
+    "AVENTURER_NFT_ADDRESS",
+  ]);
+  const feeDistributorAddress = requiredAddressFrom([
+    `NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS${suffix}`,
+    "FEE_DISTRIBUTOR_ADDRESS",
+  ]);
+  const progressTrackerAddress = requiredAddressFrom([
+    `NEXT_PUBLIC_PROGRESS_TRACKER_ADDRESS${suffix}`,
+    "PROGRESS_TRACKER_ADDRESS",
+  ]);
+  const rewardsPoolAddress = requiredAddressFrom([
+    `NEXT_PUBLIC_REWARDS_POOL_ADDRESS${suffix}`,
+    "REWARDS_POOL_ADDRESS",
+  ]);
 
   console.log(`Redeploying DungeonGame on network: ${network.name}`);
   console.log(`Deployer: ${deployer.address}`);

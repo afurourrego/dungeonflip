@@ -4,6 +4,9 @@
   "description": "A Web3 card-based dungeon crawler game built for Seedify Vibe Coins Hackathon",
   "main": "index.js",
   "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
     "compile": "hardhat compile",
     "test": "hardhat test",
     "test:coverage": "hardhat coverage",
