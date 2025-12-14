@@ -4,7 +4,7 @@ Generated: 2025-12-13 23:31:48
 Sources: `ai_logs/prompts.md`, `ai_logs/challenges.md`
 Note: Only prompts that are written in this repo are included.
 
-Total prompts: 19
+Total prompts: 20
 
 ## 1. Project Architecture Design for Base Blockchain
 Date: 2025-12-04 | Tool: Claude (Cursor) | Source: ai_logs\challenges.md:32
@@ -185,7 +185,7 @@ Date: 2025-12-14 | Tool: GitHub Copilot (VS Code) | Source: ai_logs\challenges.m
 
 ```
 Make combat logs 100% real and faithful to on-chain combat.
-Add enemy ATK range (1â€“3) with per-turn roll.
+Add enemy ATK range (1–3) with per-turn roll.
 Damage = atkRoll - heroDef, only subtract HP if > 0.
 Rename battle breakdown -> battle log.
 Newest-first.
@@ -195,13 +195,27 @@ Newest-first.
 Date: 2025-12-14 | Tool: GitHub Copilot (VS Code) | Source: ai_logs\prompts.md:687
 
 ```
-Enemy ATK must be a range (1â€“3) with a per-turn roll.
-Rename â€œBattle breakdownâ€ â†’ â€œBattle logâ€.
+Enemy ATK must be a range (1–3) with a per-turn roll.
+Rename “Battle breakdown” → “Battle log”.
 Log must show newest-first.
 Logs must be 100% faithful to on-chain combat (no client reconstruction).
 Damage rule: enemyDamage = atkRoll âˆ’ heroDef, and only subtract HP if result > 0.
 
 Also: regenerate ABI, redeploy only DungeonGame on Base Sepolia, and point the frontend to the new address.
+```
+
+## 20. Cooldown UX + Monster DEF=0 + UI Unlock + Redeploy
+Date: 2025-12-13 | Tool: GitHub Copilot (VS Code) | Source: ai_logs\prompts.md:758
+
+```
+After using “Exit victorious”, clicking “Enter the dungeon” creates a tx that later shows no changes.
+BaseScan shows: fail with error “cooldown active”.
+
+Requirements:
+- Handle cooldown clearly in the UI (don’t send tx that will revert; show countdown).
+- Sometimes after choosing a card, the tx is confirmed but the screen gets stuck until refresh.
+- Make all enemies always have DEF = 0 (never higher at any moment).
+- Redeploy only DungeonGame on Base Sepolia and point the frontend to the new address.
 ```
 
 

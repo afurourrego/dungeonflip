@@ -719,6 +719,45 @@ Also: regenerate ABI, redeploy only DungeonGame on Base Sepolia, and point the f
 
 ---
 
-**Total Prompts Documented:** 12 (11 detailed + 1 template + 1 onboarding)
-**Last Updated:** December 14, 2025
-**Status:** ✅ Combat Log is On-Chain Authoritative - Ready for E2E Smoke Test
+### Prompt 13: Cooldown UX + Monster DEF=0 + UI Unlock (Post-Tx) + Redeploy
+**Date:** 2025-12-13
+**Tool:** GitHub Copilot (VS Code)
+**Context:** Fix confusing “nothing happens” states after txs (cooldown reverts and receipt/log decoding delays), enforce monsters always DEF=0, and redeploy only `DungeonGame` while keeping existing supporting contracts.
+
+**Prompt (condensed from team session):**
+```
+After using “Exit victorious”, clicking “Enter the dungeon” creates a tx that later shows no changes.
+BaseScan shows: fail with error “cooldown active”.
+
+Requirements:
+- Handle cooldown clearly in the UI (don’t send tx that will revert; show countdown).
+- Sometimes after choosing a card, the tx is confirmed but the screen gets stuck until refresh.
+- Make all enemies always have DEF = 0 (never higher at any moment).
+- Redeploy only DungeonGame on Base Sepolia and point the frontend to the new address.
+```
+
+**Response Summary:**
+- Added cooldown-aware UX for `enterDungeon`: reads `lastEntryTime`, shows countdown, and simulates before sending to avoid revert.
+- Hardened post-tx UI: if receipt is slow, logs can’t be decoded, or tx is reverted, the UI unlocks without needing a manual refresh.
+- Enforced monster defense to always be `0` on-chain and updated UI fallbacks to match.
+- Redeployed only `DungeonGame` on Base Sepolia via `scripts/redeploy-dungeon-game.ts`, updated contract references and `frontend/.env.local`.
+
+**Iteration:** Multiple
+**Outcome:** ✅ Success - cooldown becomes explicit, UI no longer “hangs”, monsters always DEF=0, and redeploy workflow is repeatable
+**Files Modified:**
+- contracts/DungeonGame.sol
+- frontend/app/game/page.tsx
+- frontend/hooks/useGame.ts
+- frontend/components/CombatResultDialog.tsx
+- frontend/.env.local
+
+**Learning:**
+- “Tx confirmed” ≠ “state changed”: always surface revert reasons and simulate where possible.
+- Receipt/log decoding is an eventual-consistency problem on some RPCs; UI must fail open (unlock) with a recoverable message.
+- Keep contract behavior and UI fallbacks aligned to avoid “phantom stats”.
+
+---
+
+**Total Prompts Documented:** 13 (12 detailed + 1 template + 1 onboarding)
+**Last Updated:** December 13, 2025
+**Status:** ✅ Prompts organized for hackathon + latest gameplay fixes shipped
